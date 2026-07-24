@@ -30,7 +30,10 @@ public:
 		TArray<FLifetimeProperty>& OutLifetimeProps
 	) const override;
 
-	UFUNCTION(BlueprintPure, Category = "Ashen Keep|Attributes")
+	UFUNCTION(
+		BlueprintPure,
+		Category = "Ashen Keep|Attributes"
+	)
 	UAshenAttributeComponent* GetAttributeComponent() const
 	{
 		return AttributeComponent;
@@ -42,8 +45,11 @@ protected:
 
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
+
 	void StartSprint(const FInputActionValue& Value);
 	void StopSprint(const FInputActionValue& Value);
+
+	void Dodge(const FInputActionValue& Value);
 
 	UPROPERTY(
 		EditDefaultsOnly,
@@ -90,6 +96,13 @@ protected:
 	UPROPERTY(
 		EditDefaultsOnly,
 		BlueprintReadOnly,
+		Category = "Ashen Keep|Input"
+	)
+	TObjectPtr<UInputAction> DodgeAction;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
 		Category = "Ashen Keep|Movement",
 		meta = (ClampMin = "0.0")
 	)
@@ -127,21 +140,60 @@ protected:
 	)
 	float StaminaRegenerationDelay = 1.5f;
 
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Dodge",
+		meta = (ClampMin = "0.0")
+	)
+	float DodgeStrength = 900.0f;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Dodge",
+		meta = (ClampMin = "0.0")
+	)
+	float DodgeVerticalBoost = 90.0f;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Dodge",
+		meta = (ClampMin = "0.0")
+	)
+	float DodgeStaminaCost = 25.0f;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Dodge",
+		meta = (ClampMin = "0.1")
+	)
+	float DodgeCooldown = 0.75f;
+
 private:
 	void CreatePlayerHUD();
 
 	UFUNCTION(Server, Reliable)
 	void ServerSetSprinting(bool bNewSprinting);
 
+	UFUNCTION(Server, Reliable)
+	void ServerDodge(FVector DodgeDirection);
+
 	UFUNCTION()
 	void OnRep_IsSprinting();
 
 	void SetSprinting(bool bNewSprinting);
 	void ApplyMovementSpeed();
+
 	void UpdateSprintStamina();
 	void RegenerateStamina();
 	void StartStaminaRegeneration();
 	void StopStaminaTimers();
+
+	void PerformDodge(const FVector& DodgeDirection);
+	void ResetDodgeCooldown();
 
 	UPROPERTY(Transient)
 	TObjectPtr<UAshenPlayerHUDWidget> HUDWidgetInstance;
@@ -183,4 +235,8 @@ private:
 
 	FTimerHandle SprintStaminaTimerHandle;
 	FTimerHandle StaminaRegenerationTimerHandle;
+
+	bool bCanDodge = true;
+
+	FTimerHandle DodgeCooldownTimerHandle;
 };
