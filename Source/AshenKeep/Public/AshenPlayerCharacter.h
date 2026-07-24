@@ -3,13 +3,15 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "InputActionValue.h"
+#include "AshenAttributeComponent.h"
+#include "AshenPlayerHUDWidget.h"
 #include "AshenPlayerCharacter.generated.h"
 
 class UCameraComponent;
 class USpringArmComponent;
 class UInputAction;
 class UInputMappingContext;
-class UAshenAttributeComponent;
+class UInputComponent;
 
 UCLASS()
 class ASHENKEEP_API AAshenPlayerCharacter : public ACharacter
@@ -18,15 +20,19 @@ class ASHENKEEP_API AAshenPlayerCharacter : public ACharacter
 
 public:
 	AAshenPlayerCharacter();
-	UFUNCTION(BlueprintPure, Category = "Ashen Keep|Attributes")
-	UAshenAttributeComponent* GetAttributeComponent() const
-	{
-		return AttributeComponent;
-	}
 
 	virtual void SetupPlayerInputComponent(
 		UInputComponent* PlayerInputComponent
 	) override;
+
+	UFUNCTION(
+		BlueprintPure,
+		Category = "Ashen Keep|Attributes"
+	)
+	UAshenAttributeComponent* GetAttributeComponent() const
+	{
+		return AttributeComponent;
+	}
 
 protected:
 	virtual void BeginPlay() override;
@@ -34,6 +40,13 @@ protected:
 
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|UI"
+	)
+	TSubclassOf<UAshenPlayerHUDWidget> HUDWidgetClass;
 
 	UPROPERTY(
 		EditDefaultsOnly,
@@ -64,6 +77,11 @@ protected:
 	TObjectPtr<UInputAction> JumpAction;
 
 private:
+	void CreatePlayerHUD();
+
+	UPROPERTY(Transient)
+	TObjectPtr<UAshenPlayerHUDWidget> HUDWidgetInstance;
+
 	UPROPERTY(
 		VisibleAnywhere,
 		BlueprintReadOnly,

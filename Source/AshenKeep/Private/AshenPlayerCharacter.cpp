@@ -11,6 +11,7 @@
 #include "InputAction.h"
 #include "InputMappingContext.h"
 #include "AshenAttributeComponent.h"
+#include "AshenPlayerHUDWidget.h"
 
 AAshenPlayerCharacter::AAshenPlayerCharacter()
 {
@@ -52,6 +53,7 @@ AAshenPlayerCharacter::AAshenPlayerCharacter()
 void AAshenPlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+	CreatePlayerHUD();
 }
 
 void AAshenPlayerCharacter::NotifyControllerChanged()
@@ -61,23 +63,23 @@ void AAshenPlayerCharacter::NotifyControllerChanged()
 	const APlayerController* PlayerController =
 		Cast<APlayerController>(Controller);
 
-	if (!PlayerController || !DefaultMappingContext)
+	if (PlayerController && DefaultMappingContext)
 	{
-		return;
+		UEnhancedInputLocalPlayerSubsystem* InputSubsystem =
+			ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(
+				PlayerController->GetLocalPlayer()
+			);
+
+		if (InputSubsystem)
+		{
+			InputSubsystem->AddMappingContext(
+				DefaultMappingContext,
+				0
+			);
+		}
 	}
 
-	UEnhancedInputLocalPlayerSubsystem* InputSubsystem =
-		ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(
-			PlayerController->GetLocalPlayer()
-		);
-
-	if (InputSubsystem)
-	{
-		InputSubsystem->AddMappingContext(
-			DefaultMappingContext,
-			0
-		);
-	}
+	CreatePlayerHUD();
 }
 
 void AAshenPlayerCharacter::SetupPlayerInputComponent(
@@ -180,4 +182,32 @@ void AAshenPlayerCharacter::Look(
 
 	AddControllerYawInput(LookInput.X);
 	AddControllerPitchInput(LookInput.Y);
+}
+void AAshenPlayerCharacter::CreatePlayerHUD()
+{
+	if (!IsLocallyControlled() ||
+		HUDWidgetInstance ||
+		!HUDWidgetClass)
+	{
+		return;
+	}
+
+	APlayerController* PlayerController =
+		Cast<APlayerController>(Controller);
+
+	if (!PlayerController)
+	{
+		return;
+	}
+
+	HUDWidgetInstance =
+		CreateWidget<UAshenPlayerHUDWidget>(
+			PlayerController,
+			HUDWidgetClass
+		);
+
+	if (HUDWidgetInstance)
+	{
+		HUDWidgetInstance->AddToPlayerScreen();
+	}
 }
