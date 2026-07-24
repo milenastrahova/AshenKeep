@@ -39,17 +39,28 @@ public:
 		return AttributeComponent;
 	}
 
+	UFUNCTION(
+		BlueprintPure,
+		Category = "Ashen Keep|Death"
+	)
+	bool IsDead() const
+	{
+		return bIsDead;
+	}
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void NotifyControllerChanged() override;
 
 	void Move(const FInputActionValue& Value);
+	void StopMove(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
 
 	void StartSprint(const FInputActionValue& Value);
 	void StopSprint(const FInputActionValue& Value);
 
 	void Dodge(const FInputActionValue& Value);
+	void Attack(const FInputActionValue& Value);
 
 	UPROPERTY(
 		EditDefaultsOnly,
@@ -99,6 +110,29 @@ protected:
 		Category = "Ashen Keep|Input"
 	)
 	TObjectPtr<UInputAction> DodgeAction;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Input"
+	)
+	TObjectPtr<UInputAction> AttackAction;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Camera",
+		meta = (ClampMin = "0.05")
+	)
+	float LookSensitivityX = 0.75f;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Camera",
+		meta = (ClampMin = "0.05")
+	)
+	float LookSensitivityY = 0.65f;
 
 	UPROPERTY(
 		EditDefaultsOnly,
@@ -172,6 +206,61 @@ protected:
 	)
 	float DodgeCooldown = 0.75f;
 
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Combat",
+		meta = (ClampMin = "0.0")
+	)
+	float AttackDamage = 35.0f;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Combat",
+		meta = (ClampMin = "0.0")
+	)
+	float AttackRange = 175.0f;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Combat",
+		meta = (ClampMin = "1.0")
+	)
+	float AttackRadius = 55.0f;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Combat",
+		meta = (ClampMin = "0.0")
+	)
+	float AttackStaminaCost = 20.0f;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Combat",
+		meta = (ClampMin = "0.1")
+	)
+	float AttackCooldown = 0.6f;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Combat"
+	)
+	bool bDrawAttackDebug = true;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Death",
+		meta = (ClampMin = "0.0")
+	)
+	float DeathImpulse = 180.0f;
+
 private:
 	void CreatePlayerHUD();
 
@@ -181,8 +270,17 @@ private:
 	UFUNCTION(Server, Reliable)
 	void ServerDodge(FVector DodgeDirection);
 
+	UFUNCTION(Server, Reliable)
+	void ServerAttack();
+
 	UFUNCTION()
 	void OnRep_IsSprinting();
+
+	UFUNCTION()
+	void HandleDeath();
+
+	UFUNCTION()
+	void OnRep_IsDead();
 
 	void SetSprinting(bool bNewSprinting);
 	void ApplyMovementSpeed();
@@ -194,6 +292,14 @@ private:
 
 	void PerformDodge(const FVector& DodgeDirection);
 	void ResetDodgeCooldown();
+
+	void PerformAttack();
+	void ResetAttackCooldown();
+
+	void ApplyDeathState();
+
+	FVector GetCameraForwardDirection() const;
+	FVector GetDesiredDodgeDirection() const;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UAshenPlayerHUDWidget> HUDWidgetInstance;
@@ -231,12 +337,26 @@ private:
 	)
 	bool bIsSprinting = false;
 
+	UPROPERTY(
+		ReplicatedUsing = OnRep_IsDead,
+		VisibleInstanceOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Death",
+		meta = (AllowPrivateAccess = "true")
+	)
+	bool bIsDead = false;
+
+	FVector2D CachedMovementInput =
+		FVector2D::ZeroVector;
+
 	float StaminaUpdateInterval = 0.1f;
 
 	FTimerHandle SprintStaminaTimerHandle;
 	FTimerHandle StaminaRegenerationTimerHandle;
 
 	bool bCanDodge = true;
-
 	FTimerHandle DodgeCooldownTimerHandle;
+
+	bool bCanAttack = true;
+	FTimerHandle AttackCooldownTimerHandle;
 };

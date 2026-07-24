@@ -3,9 +3,14 @@
 #include "AshenAttributeComponent.h"
 #include "AshenPlayerHUDWidget.h"
 #include "Camera/CameraComponent.h"
+#include "CollisionShape.h"
+#include "Components/CapsuleComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "DrawDebugHelpers.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "Engine/LocalPlayer.h"
+#include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/PlayerController.h"
@@ -33,10 +38,19 @@ AAshenPlayerCharacter::AAshenPlayerCharacter()
 	GetCharacterMovement()->bOrientRotationToMovement = true;
 
 	GetCharacterMovement()->RotationRate =
-		FRotator(0.0f, 500.0f, 0.0f);
+		FRotator(0.0f, 720.0f, 0.0f);
 
 	GetCharacterMovement()->MaxWalkSpeed =
 		WalkSpeed;
+
+	GetCharacterMovement()->MaxAcceleration =
+		1800.0f;
+
+	GetCharacterMovement()->BrakingDecelerationWalking =
+		1400.0f;
+
+	GetCharacterMovement()->GroundFriction =
+		6.0f;
 
 	CameraBoom =
 		CreateDefaultSubobject<USpringArmComponent>(
@@ -46,6 +60,13 @@ AAshenPlayerCharacter::AAshenPlayerCharacter()
 	CameraBoom->SetupAttachment(RootComponent);
 	CameraBoom->TargetArmLength = 400.0f;
 	CameraBoom->bUsePawnControlRotation = true;
+
+	CameraBoom->bEnableCameraLag = true;
+	CameraBoom->CameraLagSpeed = 12.0f;
+	CameraBoom->CameraLagMaxDistance = 35.0f;
+
+	CameraBoom->bEnableCameraRotationLag = true;
+	CameraBoom->CameraRotationLagSpeed = 15.0f;
 
 	FollowCamera =
 		CreateDefaultSubobject<UCameraComponent>(
@@ -64,6 +85,14 @@ void AAshenPlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
+	if (AttributeComponent)
+	{
+		AttributeComponent->OnDeath.AddDynamic(
+			this,
+			&AAshenPlayerCharacter::HandleDeath
+		);
+	}
+
 	ApplyMovementSpeed();
 	CreatePlayerHUD();
 }
@@ -79,6 +108,11 @@ void AAshenPlayerCharacter::GetLifetimeReplicatedProps(
 	DOREPLIFETIME(
 		AAshenPlayerCharacter,
 		bIsSprinting
+	);
+
+	DOREPLIFETIME(
+		AAshenPlayerCharacter,
+		bIsDead
 	);
 }
 
@@ -144,6 +178,20 @@ void AAshenPlayerCharacter::SetupPlayerInputComponent(
 			this,
 			&AAshenPlayerCharacter::Move
 		);
+
+		EnhancedInput->BindAction(
+			MoveAction,
+			ETriggerEvent::Completed,
+			this,
+			&AAshenPlayerCharacter::StopMove
+		);
+
+		EnhancedInput->BindAction(
+			MoveAction,
+			ETriggerEvent::Canceled,
+			this,
+			&AAshenPlayerCharacter::StopMove
+		);
 	}
 
 	if (LookAction)
@@ -206,13 +254,28 @@ void AAshenPlayerCharacter::SetupPlayerInputComponent(
 			&AAshenPlayerCharacter::Dodge
 		);
 	}
+
+	if (AttackAction)
+	{
+		EnhancedInput->BindAction(
+			AttackAction,
+			ETriggerEvent::Started,
+			this,
+			&AAshenPlayerCharacter::Attack
+		);
+	}
 }
 
 void AAshenPlayerCharacter::Move(
 	const FInputActionValue& Value
 )
 {
-	const FVector2D MovementInput =
+	if (bIsDead)
+	{
+		return;
+	}
+
+	CachedMovementInput =
 		Value.Get<FVector2D>();
 
 	if (!Controller)
@@ -239,13 +302,21 @@ void AAshenPlayerCharacter::Move(
 
 	AddMovementInput(
 		ForwardDirection,
-		MovementInput.Y
+		CachedMovementInput.Y
 	);
 
 	AddMovementInput(
 		RightDirection,
-		MovementInput.X
+		CachedMovementInput.X
 	);
+}
+
+void AAshenPlayerCharacter::StopMove(
+	const FInputActionValue& Value
+)
+{
+	CachedMovementInput =
+		FVector2D::ZeroVector;
 }
 
 void AAshenPlayerCharacter::Look(
@@ -255,15 +326,21 @@ void AAshenPlayerCharacter::Look(
 	const FVector2D LookInput =
 		Value.Get<FVector2D>();
 
-	AddControllerYawInput(LookInput.X);
-	AddControllerPitchInput(LookInput.Y);
+	AddControllerYawInput(
+		LookInput.X * LookSensitivityX
+	);
+
+	AddControllerPitchInput(
+		LookInput.Y * LookSensitivityY
+	);
 }
 
 void AAshenPlayerCharacter::StartSprint(
 	const FInputActionValue& Value
 )
 {
-	if (!AttributeComponent ||
+	if (bIsDead ||
+		!AttributeComponent ||
 		!AttributeComponent->IsAlive() ||
 		!AttributeComponent->HasEnoughStamina(1.0f))
 	{
@@ -298,6 +375,12 @@ void AAshenPlayerCharacter::ServerSetSprinting_Implementation(
 	bool bNewSprinting
 )
 {
+	if (bIsDead)
+	{
+		SetSprinting(false);
+		return;
+	}
+
 	if (bNewSprinting)
 	{
 		const bool bCanSprint =
@@ -324,6 +407,11 @@ void AAshenPlayerCharacter::SetSprinting(
 		return;
 	}
 
+	if (bIsDead)
+	{
+		bNewSprinting = false;
+	}
+
 	bIsSprinting = bNewSprinting;
 
 	ApplyMovementSpeed();
@@ -340,7 +428,7 @@ void AAshenPlayerCharacter::SetSprinting(
 			StaminaUpdateInterval
 		);
 	}
-	else
+	else if (!bIsDead)
 	{
 		StartStaminaRegeneration();
 	}
@@ -355,6 +443,11 @@ void AAshenPlayerCharacter::OnRep_IsSprinting()
 
 void AAshenPlayerCharacter::ApplyMovementSpeed()
 {
+	if (!GetCharacterMovement())
+	{
+		return;
+	}
+
 	GetCharacterMovement()->MaxWalkSpeed =
 		bIsSprinting
 		? SprintSpeed
@@ -364,6 +457,7 @@ void AAshenPlayerCharacter::ApplyMovementSpeed()
 void AAshenPlayerCharacter::UpdateSprintStamina()
 {
 	if (!HasAuthority() ||
+		bIsDead ||
 		!bIsSprinting ||
 		!AttributeComponent ||
 		!AttributeComponent->IsAlive())
@@ -397,6 +491,7 @@ void AAshenPlayerCharacter::UpdateSprintStamina()
 void AAshenPlayerCharacter::StartStaminaRegeneration()
 {
 	if (!HasAuthority() ||
+		bIsDead ||
 		!AttributeComponent ||
 		AttributeComponent->GetStamina() >=
 		AttributeComponent->GetMaxStamina())
@@ -417,6 +512,7 @@ void AAshenPlayerCharacter::StartStaminaRegeneration()
 void AAshenPlayerCharacter::RegenerateStamina()
 {
 	if (!HasAuthority() ||
+		bIsDead ||
 		bIsSprinting ||
 		!AttributeComponent ||
 		!AttributeComponent->IsAlive())
@@ -460,7 +556,8 @@ void AAshenPlayerCharacter::Dodge(
 	const FInputActionValue& Value
 )
 {
-	if (!AttributeComponent ||
+	if (bIsDead ||
+		!AttributeComponent ||
 		!AttributeComponent->IsAlive() ||
 		!AttributeComponent->HasEnoughStamina(
 			DodgeStaminaCost
@@ -470,19 +567,8 @@ void AAshenPlayerCharacter::Dodge(
 		return;
 	}
 
-	FVector DodgeDirection =
-		GetLastMovementInputVector();
-
-	DodgeDirection.Z = 0.0f;
-
-	if (!DodgeDirection.Normalize())
-	{
-		DodgeDirection =
-			GetActorForwardVector();
-
-		DodgeDirection.Z = 0.0f;
-		DodgeDirection.Normalize();
-	}
+	const FVector DodgeDirection =
+		GetDesiredDodgeDirection();
 
 	if (HasAuthority())
 	{
@@ -506,6 +592,7 @@ void AAshenPlayerCharacter::PerformDodge(
 )
 {
 	if (!HasAuthority() ||
+		bIsDead ||
 		!bCanDodge ||
 		!AttributeComponent ||
 		!AttributeComponent->IsAlive() ||
@@ -517,16 +604,13 @@ void AAshenPlayerCharacter::PerformDodge(
 		return;
 	}
 
-	FVector SafeDirection = DodgeDirection;
-	SafeDirection.Z = 0.0f;
+	FVector SafeDirection =
+		DodgeDirection.GetSafeNormal2D();
 
-	if (!SafeDirection.Normalize())
+	if (SafeDirection.IsNearlyZero())
 	{
 		SafeDirection =
-			GetActorForwardVector();
-
-		SafeDirection.Z = 0.0f;
-		SafeDirection.Normalize();
+			GetCameraForwardDirection();
 	}
 
 	const bool bConsumed =
@@ -573,6 +657,381 @@ void AAshenPlayerCharacter::PerformDodge(
 void AAshenPlayerCharacter::ResetDodgeCooldown()
 {
 	bCanDodge = true;
+}
+
+void AAshenPlayerCharacter::Attack(
+	const FInputActionValue& Value
+)
+{
+	if (bIsDead ||
+		!AttributeComponent ||
+		!AttributeComponent->IsAlive() ||
+		!AttributeComponent->HasEnoughStamina(
+			AttackStaminaCost
+		))
+	{
+		return;
+	}
+
+	if (HasAuthority())
+	{
+		PerformAttack();
+	}
+	else
+	{
+		ServerAttack();
+	}
+}
+
+void AAshenPlayerCharacter::ServerAttack_Implementation()
+{
+	PerformAttack();
+}
+
+void AAshenPlayerCharacter::PerformAttack()
+{
+	if (!HasAuthority() ||
+		bIsDead ||
+		!bCanAttack ||
+		!AttributeComponent ||
+		!AttributeComponent->IsAlive() ||
+		!AttributeComponent->HasEnoughStamina(
+			AttackStaminaCost
+		))
+	{
+		return;
+	}
+
+	const bool bConsumed =
+		AttributeComponent->ConsumeStamina(
+			AttackStaminaCost
+		);
+
+	if (!bConsumed)
+	{
+		return;
+	}
+
+	if (bIsSprinting)
+	{
+		SetSprinting(false);
+	}
+	else
+	{
+		StopStaminaTimers();
+		StartStaminaRegeneration();
+	}
+
+	bCanAttack = false;
+
+	GetWorldTimerManager().SetTimer(
+		AttackCooldownTimerHandle,
+		this,
+		&AAshenPlayerCharacter::ResetAttackCooldown,
+		AttackCooldown,
+		false
+	);
+
+	UWorld* World = GetWorld();
+
+	if (!World)
+	{
+		return;
+	}
+
+	const FVector AttackDirection =
+		GetCameraForwardDirection();
+
+	SetActorRotation(
+		AttackDirection.Rotation()
+	);
+
+	const FVector Start =
+		GetActorLocation() +
+		FVector(0.0f, 0.0f, 50.0f) +
+		AttackDirection * 40.0f;
+
+	const FVector End =
+		Start +
+		AttackDirection * AttackRange;
+
+	FCollisionObjectQueryParams ObjectQueryParams;
+
+	ObjectQueryParams.AddObjectTypesToQuery(
+		ECC_Pawn
+	);
+
+	FCollisionQueryParams QueryParams(
+		SCENE_QUERY_STAT(AshenMeleeAttack),
+		false,
+		this
+	);
+
+	TArray<FHitResult> HitResults;
+
+	const bool bHitAnything =
+		World->SweepMultiByObjectType(
+			HitResults,
+			Start,
+			End,
+			FQuat::Identity,
+			ObjectQueryParams,
+			FCollisionShape::MakeSphere(
+				AttackRadius
+			),
+			QueryParams
+		);
+
+	if (bDrawAttackDebug)
+	{
+		const FColor DebugColor =
+			bHitAnything
+			? FColor::Red
+			: FColor::Green;
+
+		DrawDebugLine(
+			World,
+			Start,
+			End,
+			DebugColor,
+			false,
+			0.75f,
+			0,
+			2.0f
+		);
+
+		DrawDebugSphere(
+			World,
+			End,
+			AttackRadius,
+			20,
+			DebugColor,
+			false,
+			0.75f,
+			0,
+			2.0f
+		);
+	}
+
+	TSet<TWeakObjectPtr<AActor>> DamagedActors;
+
+	for (const FHitResult& HitResult : HitResults)
+	{
+		AActor* HitActor =
+			HitResult.GetActor();
+
+		if (!IsValid(HitActor) ||
+			HitActor == this)
+		{
+			continue;
+		}
+
+		const TWeakObjectPtr<AActor> ActorKey(
+			HitActor
+		);
+
+		if (DamagedActors.Contains(ActorKey))
+		{
+			continue;
+		}
+
+		UAshenAttributeComponent*
+			TargetAttributeComponent =
+			HitActor->FindComponentByClass<
+			UAshenAttributeComponent
+			>();
+
+		if (!TargetAttributeComponent ||
+			!TargetAttributeComponent->IsAlive())
+		{
+			continue;
+		}
+
+		const float AppliedDamage =
+			TargetAttributeComponent->ApplyDamage(
+				AttackDamage
+			);
+
+		if (AppliedDamage <= 0.0f)
+		{
+			continue;
+		}
+
+		DamagedActors.Add(ActorKey);
+
+		UE_LOG(
+			LogTemp,
+			Log,
+			TEXT(
+				"%s attacked %s for %.1f damage."
+			),
+			*GetName(),
+			*HitActor->GetName(),
+			AppliedDamage
+		);
+	}
+}
+
+void AAshenPlayerCharacter::ResetAttackCooldown()
+{
+	bCanAttack = true;
+}
+
+void AAshenPlayerCharacter::HandleDeath()
+{
+	if (!HasAuthority() || bIsDead)
+	{
+		return;
+	}
+
+	bIsDead = true;
+
+	if (bIsSprinting)
+	{
+		SetSprinting(false);
+	}
+
+	StopStaminaTimers();
+
+	GetWorldTimerManager().ClearTimer(
+		DodgeCooldownTimerHandle
+	);
+
+	GetWorldTimerManager().ClearTimer(
+		AttackCooldownTimerHandle
+	);
+
+	ApplyDeathState();
+	ForceNetUpdate();
+}
+
+void AAshenPlayerCharacter::OnRep_IsDead()
+{
+	if (bIsDead)
+	{
+		ApplyDeathState();
+	}
+}
+
+void AAshenPlayerCharacter::ApplyDeathState()
+{
+	CachedMovementInput =
+		FVector2D::ZeroVector;
+
+	if (UCharacterMovementComponent* MovementComponent =
+		GetCharacterMovement())
+	{
+		MovementComponent->StopMovementImmediately();
+		MovementComponent->DisableMovement();
+	}
+
+	if (UCapsuleComponent* Capsule =
+		GetCapsuleComponent())
+	{
+		Capsule->SetCollisionEnabled(
+			ECollisionEnabled::NoCollision
+		);
+	}
+
+	if (APlayerController* PlayerController =
+		Cast<APlayerController>(Controller))
+	{
+		PlayerController->SetIgnoreMoveInput(true);
+	}
+
+	USkeletalMeshComponent* PlayerMesh =
+		GetMesh();
+
+	if (!PlayerMesh)
+	{
+		return;
+	}
+
+	PlayerMesh->SetCollisionProfileName(
+		TEXT("Ragdoll")
+	);
+
+	PlayerMesh->SetCollisionEnabled(
+		ECollisionEnabled::QueryAndPhysics
+	);
+
+	PlayerMesh->SetAllBodiesSimulatePhysics(true);
+	PlayerMesh->SetSimulatePhysics(true);
+	PlayerMesh->WakeAllRigidBodies();
+
+	if (HasAuthority() && DeathImpulse > 0.0f)
+	{
+		const FVector ImpulseDirection =
+			-GetActorForwardVector() +
+			FVector::UpVector * 0.3f;
+
+		PlayerMesh->AddImpulse(
+			ImpulseDirection.GetSafeNormal() *
+			DeathImpulse,
+			NAME_None,
+			true
+		);
+	}
+}
+
+FVector AAshenPlayerCharacter::GetCameraForwardDirection() const
+{
+	if (Controller)
+	{
+		const FRotator ControlRotation =
+			Controller->GetControlRotation();
+
+		const FRotator YawRotation(
+			0.0f,
+			ControlRotation.Yaw,
+			0.0f
+		);
+
+		return FRotationMatrix(YawRotation)
+			.GetUnitAxis(EAxis::X)
+			.GetSafeNormal2D();
+	}
+
+	return GetActorForwardVector()
+		.GetSafeNormal2D();
+}
+
+FVector AAshenPlayerCharacter::GetDesiredDodgeDirection() const
+{
+	if (!Controller)
+	{
+		return GetActorForwardVector()
+			.GetSafeNormal2D();
+	}
+
+	const FRotator ControlRotation =
+		Controller->GetControlRotation();
+
+	const FRotator YawRotation(
+		0.0f,
+		ControlRotation.Yaw,
+		0.0f
+	);
+
+	const FVector ForwardDirection =
+		FRotationMatrix(YawRotation)
+		.GetUnitAxis(EAxis::X);
+
+	const FVector RightDirection =
+		FRotationMatrix(YawRotation)
+		.GetUnitAxis(EAxis::Y);
+
+	FVector DodgeDirection =
+		ForwardDirection * CachedMovementInput.Y +
+		RightDirection * CachedMovementInput.X;
+
+	if (DodgeDirection.IsNearlyZero())
+	{
+		DodgeDirection =
+			ForwardDirection;
+	}
+
+	return DodgeDirection.GetSafeNormal2D();
 }
 
 void AAshenPlayerCharacter::CreatePlayerHUD()
