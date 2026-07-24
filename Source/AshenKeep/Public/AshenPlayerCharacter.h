@@ -9,6 +9,7 @@ class UCameraComponent;
 class USpringArmComponent;
 class UInputAction;
 class UInputMappingContext;
+class UAshenAttributeComponent;
 
 UCLASS()
 class ASHENKEEP_API AAshenPlayerCharacter : public ACharacter
@@ -17,6 +18,11 @@ class ASHENKEEP_API AAshenPlayerCharacter : public ACharacter
 
 public:
 	AAshenPlayerCharacter();
+	UFUNCTION(BlueprintPure, Category = "Ashen Keep|Attributes")
+	UAshenAttributeComponent* GetAttributeComponent() const
+	{
+		return AttributeComponent;
+	}
 
 	virtual void SetupPlayerInputComponent(
 		UInputComponent* PlayerInputComponent
@@ -73,4 +79,12 @@ private:
 		meta = (AllowPrivateAccess = "true")
 	)
 	TObjectPtr<UCameraComponent> FollowCamera;
+
+	UPROPERTY(
+		VisibleAnywhere,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Attributes",
+		meta = (AllowPrivateAccess = "true")
+	)
+	TObjectPtr<UAshenAttributeComponent> AttributeComponent;
 };

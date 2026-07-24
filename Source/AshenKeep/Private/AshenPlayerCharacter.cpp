@@ -10,6 +10,7 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "InputAction.h"
 #include "InputMappingContext.h"
+#include "AshenAttributeComponent.h"
 
 AAshenPlayerCharacter::AAshenPlayerCharacter()
 {
@@ -17,6 +18,10 @@ AAshenPlayerCharacter::AAshenPlayerCharacter()
 
 	bReplicates = true;
 	SetReplicateMovement(true);
+	AttributeComponent =
+		CreateDefaultSubobject<UAshenAttributeComponent>(
+			TEXT("AttributeComponent")
+		);
 
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationYaw = false;
