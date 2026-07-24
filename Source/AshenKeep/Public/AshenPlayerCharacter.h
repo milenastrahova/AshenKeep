@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "InputActionValue.h"
+#include "TimerManager.h"
 #include "AshenAttributeComponent.h"
 #include "AshenPlayerHUDWidget.h"
 #include "AshenPlayerCharacter.generated.h"
@@ -25,10 +26,11 @@ public:
 		UInputComponent* PlayerInputComponent
 	) override;
 
-	UFUNCTION(
-		BlueprintPure,
-		Category = "Ashen Keep|Attributes"
-	)
+	virtual void GetLifetimeReplicatedProps(
+		TArray<FLifetimeProperty>& OutLifetimeProps
+	) const override;
+
+	UFUNCTION(BlueprintPure, Category = "Ashen Keep|Attributes")
 	UAshenAttributeComponent* GetAttributeComponent() const
 	{
 		return AttributeComponent;
@@ -40,6 +42,8 @@ protected:
 
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
+	void StartSprint(const FInputActionValue& Value);
+	void StopSprint(const FInputActionValue& Value);
 
 	UPROPERTY(
 		EditDefaultsOnly,
@@ -76,8 +80,68 @@ protected:
 	)
 	TObjectPtr<UInputAction> JumpAction;
 
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Input"
+	)
+	TObjectPtr<UInputAction> SprintAction;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Movement",
+		meta = (ClampMin = "0.0")
+	)
+	float WalkSpeed = 450.0f;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Movement",
+		meta = (ClampMin = "0.0")
+	)
+	float SprintSpeed = 700.0f;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Movement",
+		meta = (ClampMin = "0.0")
+	)
+	float SprintStaminaCostPerSecond = 20.0f;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Movement",
+		meta = (ClampMin = "0.0")
+	)
+	float StaminaRegenerationPerSecond = 15.0f;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Movement",
+		meta = (ClampMin = "0.0")
+	)
+	float StaminaRegenerationDelay = 1.5f;
+
 private:
 	void CreatePlayerHUD();
+
+	UFUNCTION(Server, Reliable)
+	void ServerSetSprinting(bool bNewSprinting);
+
+	UFUNCTION()
+	void OnRep_IsSprinting();
+
+	void SetSprinting(bool bNewSprinting);
+	void ApplyMovementSpeed();
+	void UpdateSprintStamina();
+	void RegenerateStamina();
+	void StartStaminaRegeneration();
+	void StopStaminaTimers();
 
 	UPROPERTY(Transient)
 	TObjectPtr<UAshenPlayerHUDWidget> HUDWidgetInstance;
@@ -105,4 +169,18 @@ private:
 		meta = (AllowPrivateAccess = "true")
 	)
 	TObjectPtr<UAshenAttributeComponent> AttributeComponent;
+
+	UPROPERTY(
+		ReplicatedUsing = OnRep_IsSprinting,
+		VisibleInstanceOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Movement",
+		meta = (AllowPrivateAccess = "true")
+	)
+	bool bIsSprinting = false;
+
+	float StaminaUpdateInterval = 0.1f;
+
+	FTimerHandle SprintStaminaTimerHandle;
+	FTimerHandle StaminaRegenerationTimerHandle;
 };
