@@ -251,7 +251,23 @@ protected:
 		BlueprintReadOnly,
 		Category = "Ashen Keep|Combat"
 	)
-	bool bDrawAttackDebug = true;
+	bool bDrawAttackDebug = false;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Vampire",
+		meta = (ClampMin = "0.0")
+	)
+	float VampiricHealthOnKill = 25.0f;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Vampire",
+		meta = (ClampMin = "0.0")
+	)
+	float BloodEssenceOnKill = 35.0f;
 
 	UPROPERTY(
 		EditDefaultsOnly,
@@ -260,6 +276,16 @@ protected:
 		meta = (ClampMin = "0.0")
 	)
 	float DeathImpulse = 180.0f;
+
+	UFUNCTION(
+		BlueprintImplementableEvent,
+		Category = "Ashen Keep|Vampire",
+		meta = (DisplayName = "On Vampiric Recovery")
+	)
+	void BP_OnVampiricRecovery(
+		float HealthRestored,
+		float BloodRestored
+	);
 
 private:
 	void CreatePlayerHUD();
@@ -272,6 +298,15 @@ private:
 
 	UFUNCTION(Server, Reliable)
 	void ServerAttack();
+
+	UFUNCTION(
+		NetMulticast,
+		Unreliable
+	)
+	void MulticastPlayVampiricRecoveryCue(
+		float HealthRestored,
+		float BloodRestored
+	);
 
 	UFUNCTION()
 	void OnRep_IsSprinting();
@@ -296,6 +331,7 @@ private:
 	void PerformAttack();
 	void ResetAttackCooldown();
 
+	void ApplyVampiricKillReward();
 	void ApplyDeathState();
 
 	FVector GetCameraForwardDirection() const;
@@ -346,8 +382,7 @@ private:
 	)
 	bool bIsDead = false;
 
-	FVector2D CachedMovementInput =
-		FVector2D::ZeroVector;
+	FVector2D CachedMovementInput = FVector2D::ZeroVector;
 
 	float StaminaUpdateInterval = 0.1f;
 

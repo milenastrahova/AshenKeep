@@ -2,6 +2,7 @@
 
 #include "AshenAttributeComponent.h"
 #include "AshenPlayerHUDWidget.h"
+#include "AshenTrainingEnemy.h"
 #include "Camera/CameraComponent.h"
 #include "CollisionShape.h"
 #include "Components/CapsuleComponent.h"
@@ -36,21 +37,13 @@ AAshenPlayerCharacter::AAshenPlayerCharacter()
 	bUseControllerRotationRoll = false;
 
 	GetCharacterMovement()->bOrientRotationToMovement = true;
-
 	GetCharacterMovement()->RotationRate =
 		FRotator(0.0f, 720.0f, 0.0f);
 
-	GetCharacterMovement()->MaxWalkSpeed =
-		WalkSpeed;
-
-	GetCharacterMovement()->MaxAcceleration =
-		1800.0f;
-
-	GetCharacterMovement()->BrakingDecelerationWalking =
-		1400.0f;
-
-	GetCharacterMovement()->GroundFriction =
-		6.0f;
+	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
+	GetCharacterMovement()->MaxAcceleration = 1800.0f;
+	GetCharacterMovement()->BrakingDecelerationWalking = 1400.0f;
+	GetCharacterMovement()->GroundFriction = 6.0f;
 
 	CameraBoom =
 		CreateDefaultSubobject<USpringArmComponent>(
@@ -60,11 +53,9 @@ AAshenPlayerCharacter::AAshenPlayerCharacter()
 	CameraBoom->SetupAttachment(RootComponent);
 	CameraBoom->TargetArmLength = 400.0f;
 	CameraBoom->bUsePawnControlRotation = true;
-
 	CameraBoom->bEnableCameraLag = true;
 	CameraBoom->CameraLagSpeed = 12.0f;
 	CameraBoom->CameraLagMaxDistance = 35.0f;
-
 	CameraBoom->bEnableCameraRotationLag = true;
 	CameraBoom->CameraRotationLagSpeed = 15.0f;
 
@@ -101,9 +92,7 @@ void AAshenPlayerCharacter::GetLifetimeReplicatedProps(
 	TArray<FLifetimeProperty>& OutLifetimeProps
 ) const
 {
-	Super::GetLifetimeReplicatedProps(
-		OutLifetimeProps
-	);
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(
 		AAshenPlayerCharacter,
@@ -315,8 +304,7 @@ void AAshenPlayerCharacter::StopMove(
 	const FInputActionValue& Value
 )
 {
-	CachedMovementInput =
-		FVector2D::ZeroVector;
+	CachedMovementInput = FVector2D::ZeroVector;
 }
 
 void AAshenPlayerCharacter::Look(
@@ -386,9 +374,7 @@ void AAshenPlayerCharacter::ServerSetSprinting_Implementation(
 		const bool bCanSprint =
 			AttributeComponent &&
 			AttributeComponent->IsAlive() &&
-			AttributeComponent->HasEnoughStamina(
-				1.0f
-			);
+			AttributeComponent->HasEnoughStamina(1.0f);
 
 		SetSprinting(bCanSprint);
 		return;
@@ -756,10 +742,7 @@ void AAshenPlayerCharacter::PerformAttack()
 		AttackDirection * AttackRange;
 
 	FCollisionObjectQueryParams ObjectQueryParams;
-
-	ObjectQueryParams.AddObjectTypesToQuery(
-		ECC_Pawn
-	);
+	ObjectQueryParams.AddObjectTypesToQuery(ECC_Pawn);
 
 	FCollisionQueryParams QueryParams(
 		SCENE_QUERY_STAT(AshenMeleeAttack),
@@ -847,6 +830,9 @@ void AAshenPlayerCharacter::PerformAttack()
 			continue;
 		}
 
+		const bool bTargetWasAlive =
+			TargetAttributeComponent->IsAlive();
+
 		const float AppliedDamage =
 			TargetAttributeComponent->ApplyDamage(
 				AttackDamage
@@ -858,6 +844,16 @@ void AAshenPlayerCharacter::PerformAttack()
 		}
 
 		DamagedActors.Add(ActorKey);
+
+		const bool bKilledHunter =
+			bTargetWasAlive &&
+			!TargetAttributeComponent->IsAlive() &&
+			Cast<AAshenTrainingEnemy>(HitActor) != nullptr;
+
+		if (bKilledHunter)
+		{
+			ApplyVampiricKillReward();
+		}
 
 		UE_LOG(
 			LogTemp,
@@ -875,6 +871,75 @@ void AAshenPlayerCharacter::PerformAttack()
 void AAshenPlayerCharacter::ResetAttackCooldown()
 {
 	bCanAttack = true;
+}
+
+void AAshenPlayerCharacter::ApplyVampiricKillReward()
+{
+	if (!HasAuthority() ||
+		bIsDead ||
+		!AttributeComponent)
+	{
+		return;
+	}
+
+	const float PreviousHealth =
+		AttributeComponent->GetHealth();
+
+	const float PreviousBlood =
+		AttributeComponent->GetMana();
+
+	AttributeComponent->RestoreHealth(
+		VampiricHealthOnKill
+	);
+
+	AttributeComponent->RestoreMana(
+		BloodEssenceOnKill
+	);
+
+	const float HealthRestored =
+		FMath::Max(
+			0.0f,
+			AttributeComponent->GetHealth() -
+			PreviousHealth
+		);
+
+	const float BloodRestored =
+		FMath::Max(
+			0.0f,
+			AttributeComponent->GetMana() -
+			PreviousBlood
+		);
+
+	if (HealthRestored > 0.0f ||
+		BloodRestored > 0.0f)
+	{
+		MulticastPlayVampiricRecoveryCue(
+			HealthRestored,
+			BloodRestored
+		);
+	}
+
+	UE_LOG(
+		LogTemp,
+		Log,
+		TEXT(
+			"Vampiric Recovery: +%.1f Health, +%.1f Blood Essence."
+		),
+		HealthRestored,
+		BloodRestored
+	);
+}
+
+void AAshenPlayerCharacter::
+MulticastPlayVampiricRecoveryCue_Implementation(
+	float HealthRestored,
+	float BloodRestored
+)
+{
+	BP_OnVampiricRecovery(
+		HealthRestored,
+		BloodRestored
+	);
 }
 
 void AAshenPlayerCharacter::HandleDeath()
@@ -974,7 +1039,8 @@ void AAshenPlayerCharacter::ApplyDeathState()
 	}
 }
 
-FVector AAshenPlayerCharacter::GetCameraForwardDirection() const
+FVector AAshenPlayerCharacter::
+GetCameraForwardDirection() const
 {
 	if (Controller)
 	{
@@ -996,7 +1062,8 @@ FVector AAshenPlayerCharacter::GetCameraForwardDirection() const
 		.GetSafeNormal2D();
 }
 
-FVector AAshenPlayerCharacter::GetDesiredDodgeDirection() const
+FVector AAshenPlayerCharacter::
+GetDesiredDodgeDirection() const
 {
 	if (!Controller)
 	{
