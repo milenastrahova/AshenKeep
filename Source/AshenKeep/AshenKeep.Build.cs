@@ -1,51 +1,62 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
-
 using UnrealBuildTool;
 
 public class AshenKeep : ModuleRules
 {
-	public AshenKeep(ReadOnlyTargetRules Target) : base(Target)
-	{
-		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+    public AshenKeep(ReadOnlyTargetRules Target)
+        : base(Target)
+    {
+        PCHUsage =
+            PCHUsageMode.UseExplicitOrSharedPCHs;
 
-		PublicDependencyModuleNames.AddRange(new string[] {
-			"Core",
-			"CoreUObject",
-			"Engine",
-			"InputCore",
-			"EnhancedInput",
-			"AIModule",
-			"StateTreeModule",
-			"GameplayStateTreeModule",
-			"UMG",
-			"Slate"
-		});
+        PublicDependencyModuleNames.AddRange(
+            new string[]
+            {
+                "Core",
+                "CoreUObject",
+                "Engine",
+                "InputCore",
+                "EnhancedInput",
 
-		PrivateDependencyModuleNames.AddRange(new string[] { });
+                "UMG",
+                "Slate",
+                "SlateCore",
 
-		PublicIncludePaths.AddRange(new string[] {
-			"AshenKeep",
-			"AshenKeep/Variant_Platforming",
-			"AshenKeep/Variant_Platforming/Animation",
-			"AshenKeep/Variant_Combat",
-			"AshenKeep/Variant_Combat/AI",
-			"AshenKeep/Variant_Combat/Animation",
-			"AshenKeep/Variant_Combat/Gameplay",
-			"AshenKeep/Variant_Combat/Interfaces",
-			"AshenKeep/Variant_Combat/UI",
-			"AshenKeep/Variant_SideScrolling",
-			"AshenKeep/Variant_SideScrolling/AI",
-			"AshenKeep/Variant_SideScrolling/Gameplay",
-			"AshenKeep/Variant_SideScrolling/Interfaces",
-			"AshenKeep/Variant_SideScrolling/UI"
-		});
+                "AIModule",
+                "NavigationSystem",
+                "GameplayTasks",
 
-		// Uncomment if you are using Slate UI
-		// PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
+                "StateTreeModule",
+                "GameplayStateTreeModule"
+            }
+        );
 
-		// Uncomment if you are using online features
-		// PrivateDependencyModuleNames.Add("OnlineSubsystem");
+        PrivateDependencyModuleNames.AddRange(
+            new string[]
+            {
+            }
+        );
 
-		// To include OnlineSubsystemSteam, add it to the plugins section in your uproject file with the Enabled attribute set to true
-	}
+        PublicIncludePaths.AddRange(
+            new string[]
+            {
+                "AshenKeep",
+
+                "AshenKeep/Variant_Platforming",
+                "AshenKeep/Variant_Platforming/Animation",
+
+                "AshenKeep/Variant_Combat",
+                "AshenKeep/Variant_Combat/AI",
+                "AshenKeep/Variant_Combat/Animation",
+                "AshenKeep/Variant_Combat/Gameplay",
+                "AshenKeep/Variant_Combat/Interfaces",
+                "AshenKeep/Variant_Combat/UI",
+
+                "AshenKeep/Variant_SideScrolling",
+                "AshenKeep/Variant_SideScrolling/AI",
+                "AshenKeep/Variant_SideScrolling/Gameplay",
+                "AshenKeep/Variant_SideScrolling/Interfaces",
+                "AshenKeep/Variant_SideScrolling/UI"
+            }
+        );
+    }
 }
