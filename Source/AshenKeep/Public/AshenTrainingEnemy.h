@@ -6,6 +6,7 @@
 #include "AshenTrainingEnemy.generated.h"
 
 class UAshenAttributeComponent;
+class UWidgetComponent;
 
 UCLASS()
 class ASHENKEEP_API AAshenTrainingEnemy
@@ -64,6 +65,14 @@ protected:
 	)
 	TObjectPtr<UAshenAttributeComponent>
 		AttributeComponent;
+
+	UPROPERTY(
+		VisibleAnywhere,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|UI"
+	)
+	TObjectPtr<UWidgetComponent>
+		HealthWidgetComponent;
 
 	UPROPERTY(
 		EditDefaultsOnly,

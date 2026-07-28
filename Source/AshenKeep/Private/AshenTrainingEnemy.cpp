@@ -2,9 +2,11 @@
 
 #include "AshenAttributeComponent.h"
 #include "AshenEnemyAIController.h"
+#include "AshenEnemyHealthWidget.h"
 #include "AIController.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Components/WidgetComponent.h"
 #include "DrawDebugHelpers.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Net/UnrealNetwork.h"
@@ -28,6 +30,37 @@ AAshenTrainingEnemy::AAshenTrainingEnemy()
 		>(
 			TEXT("AttributeComponent")
 		);
+
+	HealthWidgetComponent =
+		CreateDefaultSubobject<
+		UWidgetComponent
+		>(
+			TEXT("HealthWidgetComponent")
+		);
+
+	HealthWidgetComponent->SetupAttachment(
+		GetRootComponent()
+	);
+
+	HealthWidgetComponent->SetRelativeLocation(
+		FVector(0.0f, 0.0f, 120.0f)
+	);
+
+	HealthWidgetComponent->SetWidgetSpace(
+		EWidgetSpace::Screen
+	);
+
+	HealthWidgetComponent->SetDrawSize(
+		FVector2D(180.0f, 24.0f)
+	);
+
+	HealthWidgetComponent->SetPivot(
+		FVector2D(0.5f, 0.5f)
+	);
+
+	HealthWidgetComponent->SetCollisionEnabled(
+		ECollisionEnabled::NoCollision
+	);
 
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationYaw = false;
@@ -53,6 +86,24 @@ void AAshenTrainingEnemy::BeginPlay()
 			this,
 			&AAshenTrainingEnemy::HandleDeath
 		);
+	}
+
+	if (HealthWidgetComponent)
+	{
+		HealthWidgetComponent->InitWidget();
+
+		UAshenEnemyHealthWidget* HealthWidget =
+			Cast<UAshenEnemyHealthWidget>(
+				HealthWidgetComponent->
+				GetUserWidgetObject()
+			);
+
+		if (HealthWidget)
+		{
+			HealthWidget->SetObservedEnemy(
+				this
+			);
+		}
 	}
 }
 
@@ -228,6 +279,13 @@ void AAshenTrainingEnemy::OnRep_IsDead()
 
 void AAshenTrainingEnemy::ApplyDeathState()
 {
+	if (HealthWidgetComponent)
+	{
+		HealthWidgetComponent->SetVisibility(
+			false
+		);
+	}
+
 	if (AAIController* EnemyController =
 		Cast<AAIController>(Controller))
 	{
