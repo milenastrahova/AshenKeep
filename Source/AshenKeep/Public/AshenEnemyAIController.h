@@ -2,10 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "AIController.h"
-#include "TimerManager.h"
 #include "AshenEnemyAIController.generated.h"
 
-class UPawnSensingComponent;
 class AAshenPlayerCharacter;
 class AAshenTrainingEnemy;
 
@@ -25,18 +23,116 @@ protected:
 		APawn* InPawn
 	) override;
 
-	virtual void OnUnPossess() override;
+private:
+	void StartThinkLoop();
+	void UpdateAI();
+	void ClearTarget();
 
+	AAshenPlayerCharacter*
+		FindBestVisiblePlayer() const;
+
+	bool IsPlayerValid(
+		AAshenPlayerCharacter* Player
+	) const;
+
+	bool CanAcquirePlayer(
+		AAshenPlayerCharacter* Player
+	) const;
+
+	bool HasClearSightToPlayer(
+		AAshenPlayerCharacter* Player
+	) const;
+
+	bool IsInsideChaseArea(
+		AAshenPlayerCharacter* Player
+	) const;
+
+	AAshenTrainingEnemy*
+		GetControlledEnemy() const;
+
+	/*
+	 * Максимальная дистанция, на которой
+	 * враг способен впервые заметить игрока.
+	 */
 	UPROPERTY(
-		VisibleAnywhere,
-		BlueprintReadOnly,
-		Category = "Ashen Keep|AI"
+		EditDefaultsOnly,
+		Category = "Ashen Keep|AI|Sight",
+		meta = (ClampMin = "100.0")
 	)
-	TObjectPtr<UPawnSensingComponent> PawnSensing;
+	float SightRadius = 1300.0f;
+
+	/*
+	 * На близкой дистанции враг замечает
+	 * игрока независимо от направления,
+	 * но только при прямой видимости.
+	 */
+	UPROPERTY(
+		EditDefaultsOnly,
+		Category = "Ashen Keep|AI|Sight",
+		meta = (ClampMin = "0.0")
+	)
+	float CloseAwarenessRadius = 750.0f;
+
+	/*
+	 * Половина угла зрения.
+	 * 80 означает общий конус 160 градусов.
+	 */
+	UPROPERTY(
+		EditDefaultsOnly,
+		Category = "Ashen Keep|AI|Sight",
+		meta = (
+			ClampMin = "1.0",
+			ClampMax = "180.0"
+			)
+	)
+	float PeripheralVisionHalfAngleDegrees =
+		80.0f;
+
+	/*
+	 * При первом обнаружении враг не должен
+	 * замечать игрока на другом этаже.
+	 */
+	UPROPERTY(
+		EditDefaultsOnly,
+		Category = "Ashen Keep|AI|Sight",
+		meta = (ClampMin = "0.0")
+	)
+	float AcquisitionVerticalTolerance =
+		260.0f;
+
+	/*
+	 * После обнаружения враг может немного
+	 * сопровождать игрока по лестнице.
+	 */
+	UPROPERTY(
+		EditDefaultsOnly,
+		Category = "Ashen Keep|AI|Sight",
+		meta = (ClampMin = "0.0")
+	)
+	float ChaseVerticalTolerance =
+		700.0f;
+
+	/*
+	 * Враг не преследует игрока через
+	 * абсолютно всё подземелье.
+	 */
+	UPROPERTY(
+		EditDefaultsOnly,
+		Category = "Ashen Keep|AI|Chase",
+		meta = (ClampMin = "100.0")
+	)
+	float MaxChaseDistanceFromHome =
+		2000.0f;
 
 	UPROPERTY(
 		EditDefaultsOnly,
-		BlueprintReadOnly,
+		Category = "Ashen Keep|AI|Memory",
+		meta = (ClampMin = "0.0")
+	)
+	float LoseSightGracePeriod = 1.8f;
+
+	UPROPERTY(
+		EditDefaultsOnly,
 		Category = "Ashen Keep|AI",
 		meta = (ClampMin = "0.05")
 	)
@@ -44,28 +140,27 @@ protected:
 
 	UPROPERTY(
 		EditDefaultsOnly,
-		BlueprintReadOnly,
 		Category = "Ashen Keep|AI",
 		meta = (ClampMin = "0.0")
 	)
-	float LoseTargetDistance = 2200.0f;
+	float MoveAcceptanceRadius = 80.0f;
 
 	UPROPERTY(
 		EditDefaultsOnly,
-		BlueprintReadOnly,
-		Category = "Ashen Keep|AI",
-		meta = (ClampMin = "0.0")
+		Category = "Ashen Keep|AI|Debug"
 	)
-	float MoveAcceptanceRadius = 110.0f;
+	bool bDrawVisionDebug = false;
 
-private:
-	UFUNCTION()
-	void HandleSeePawn(APawn* SeenPawn);
+	TWeakObjectPtr<AAshenPlayerCharacter>
+		CurrentTarget;
 
-	void UpdateAI();
-	void ClearTarget();
+	FVector HomeLocation =
+		FVector::ZeroVector;
 
-	TWeakObjectPtr<AAshenPlayerCharacter> TargetPlayer;
+	FVector LastSeenLocation =
+		FVector::ZeroVector;
+
+	float LastSeenTime = -10000.0f;
 
 	FTimerHandle ThinkTimerHandle;
 };

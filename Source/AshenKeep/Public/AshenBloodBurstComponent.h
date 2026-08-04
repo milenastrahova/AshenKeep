@@ -6,6 +6,7 @@
 
 class AAshenTrainingEnemy;
 class UAshenAttributeComponent;
+class USoundBase;
 
 UCLASS(
 	ClassGroup = (AshenKeep),
@@ -75,12 +76,28 @@ protected:
 	)
 	float Cooldown = 3.0f;
 
+
+	UPROPERTY(
+		EditAnywhere,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Blood Burst|Audio"
+	)
+	TObjectPtr<USoundBase> BloodBurstSound;
+
+	UPROPERTY(
+		EditAnywhere,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Blood Burst|Audio",
+		meta = (ClampMin = "0.0")
+	)
+	float BloodBurstSoundVolume = 0.88f;
+
 	UPROPERTY(
 		EditAnywhere,
 		BlueprintReadOnly,
 		Category = "Ashen Keep|Blood Burst"
 	)
-	bool bDrawDebug = true;
+	bool bDrawDebug = false;
 
 	UPROPERTY(
 		EditAnywhere,

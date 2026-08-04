@@ -3,43 +3,41 @@
 #include "AshenAttributeComponent.h"
 #include "AshenEnemyAIController.h"
 #include "AshenEnemyHealthWidget.h"
+#include "AshenPlayerCharacter.h"
+
 #include "AIController.h"
+#include "Animation/AnimationAsset.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/WidgetComponent.h"
 #include "DrawDebugHelpers.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
+#include "Sound/SoundBase.h"
+#include "UObject/ConstructorHelpers.h"
+#include "TimerManager.h"
 
 AAshenTrainingEnemy::AAshenTrainingEnemy()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.TickInterval = 0.05f;
 
 	bReplicates = true;
 	SetReplicateMovement(true);
 
-	AIControllerClass =
-		AAshenEnemyAIController::StaticClass();
-
-	AutoPossessAI =
-		EAutoPossessAI::PlacedInWorldOrSpawned;
-
 	AttributeComponent =
-		CreateDefaultSubobject<
-		UAshenAttributeComponent
-		>(
+		CreateDefaultSubobject<UAshenAttributeComponent>(
 			TEXT("AttributeComponent")
 		);
 
 	HealthWidgetComponent =
-		CreateDefaultSubobject<
-		UWidgetComponent
-		>(
+		CreateDefaultSubobject<UWidgetComponent>(
 			TEXT("HealthWidgetComponent")
 		);
 
 	HealthWidgetComponent->SetupAttachment(
-		GetRootComponent()
+		RootComponent
 	);
 
 	HealthWidgetComponent->SetRelativeLocation(
@@ -54,31 +52,63 @@ AAshenTrainingEnemy::AAshenTrainingEnemy()
 		FVector2D(180.0f, 24.0f)
 	);
 
-	HealthWidgetComponent->SetPivot(
-		FVector2D(0.5f, 0.5f)
-	);
-
 	HealthWidgetComponent->SetCollisionEnabled(
 		ECollisionEnabled::NoCollision
 	);
 
-	bUseControllerRotationPitch = false;
-	bUseControllerRotationYaw = false;
-	bUseControllerRotationRoll = false;
+	AIControllerClass =
+		AAshenEnemyAIController::StaticClass();
+
+	AutoPossessAI =
+		EAutoPossessAI::PlacedInWorldOrSpawned;
 
 	GetCharacterMovement()->
 		bOrientRotationToMovement = true;
 
 	GetCharacterMovement()->RotationRate =
-		FRotator(0.0f, 600.0f, 0.0f);
+		FRotator(0.0f, 540.0f, 0.0f);
+
+	GetCharacterMovement()->MaxWalkSpeed =
+		ChaseSpeed;
+
+	static ConstructorHelpers::FObjectFinder<USoundBase>
+		AttackSoundFinder(
+			TEXT(
+				"/Game/Audio/SFX/S_Ashen_EnemyAttack."
+				"S_Ashen_EnemyAttack"
+			)
+		);
+
+	if (AttackSoundFinder.Succeeded())
+	{
+		AttackSound =
+			AttackSoundFinder.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<USoundBase>
+		DeathSoundFinder(
+			TEXT(
+				"/Game/Audio/SFX/S_Ashen_EnemyDeath."
+				"S_Ashen_EnemyDeath"
+			)
+		);
+
+	if (DeathSoundFinder.Succeeded())
+	{
+		DeathSound =
+			DeathSoundFinder.Object;
+	}
 }
 
 void AAshenTrainingEnemy::BeginPlay()
 {
 	Super::BeginPlay();
 
-	GetCharacterMovement()->MaxWalkSpeed =
-		ChaseSpeed;
+	if (GetCharacterMovement())
+	{
+		GetCharacterMovement()->MaxWalkSpeed =
+			ChaseSpeed;
+	}
 
 	if (AttributeComponent)
 	{
@@ -95,7 +125,7 @@ void AAshenTrainingEnemy::BeginPlay()
 		UAshenEnemyHealthWidget* HealthWidget =
 			Cast<UAshenEnemyHealthWidget>(
 				HealthWidgetComponent->
-				GetUserWidgetObject()
+					GetUserWidgetObject()
 			);
 
 		if (HealthWidget)
@@ -105,12 +135,24 @@ void AAshenTrainingEnemy::BeginPlay()
 			);
 		}
 	}
+
+	if (bUseSimpleAnimationSystem)
+	{
+		UpdateSimpleAnimation();
+	}
 }
 
-void AAshenTrainingEnemy::
-GetLifetimeReplicatedProps(
-	TArray<FLifetimeProperty>&
-	OutLifetimeProps
+void AAshenTrainingEnemy::Tick(
+	float DeltaSeconds
+)
+{
+	Super::Tick(DeltaSeconds);
+
+	UpdateSimpleAnimation();
+}
+
+void AAshenTrainingEnemy::GetLifetimeReplicatedProps(
+	TArray<FLifetimeProperty>& OutLifetimeProps
 ) const
 {
 	Super::GetLifetimeReplicatedProps(
@@ -123,67 +165,77 @@ GetLifetimeReplicatedProps(
 	);
 }
 
-bool AAshenTrainingEnemy::TryAttack(
-	AActor* TargetActor
+void AAshenTrainingEnemy::TryAttack(
+	AAshenPlayerCharacter* Target
 )
 {
 	if (!HasAuthority() ||
 		bIsDead ||
 		!bCanAttack ||
-		!IsValid(TargetActor) ||
-		TargetActor == this)
+		!IsValid(Target) ||
+		Target->IsDead())
 	{
-		return false;
+		return;
 	}
 
-	UAshenAttributeComponent*
-		TargetAttributeComponent =
-		TargetActor->FindComponentByClass<
-		UAshenAttributeComponent
-		>();
-
-	if (!TargetAttributeComponent ||
-		!TargetAttributeComponent->IsAlive())
+	if (Target->IsMistStepping())
 	{
-		return false;
+		return;
 	}
 
-	const float MaximumDistance =
-		AttackRange + AttackRadius;
+	if (!AttributeComponent ||
+		!AttributeComponent->IsAlive())
+	{
+		return;
+	}
 
-	const float DistanceSquared =
-		FVector::DistSquared2D(
+	UAshenAttributeComponent* TargetAttributes =
+		Target->GetAttributeComponent();
+
+	if (!TargetAttributes ||
+		!TargetAttributes->IsAlive())
+	{
+		return;
+	}
+
+	const float DistanceToTarget =
+		FVector::Distance(
 			GetActorLocation(),
-			TargetActor->GetActorLocation()
+			Target->GetActorLocation()
 		);
 
-	if (DistanceSquared >
-		FMath::Square(MaximumDistance))
+	if (DistanceToTarget > AttackRange)
 	{
-		return false;
+		return;
 	}
 
-	FVector AttackDirection =
-		TargetActor->GetActorLocation() -
+	AAIController* EnemyController =
+		Cast<AAIController>(
+			GetController()
+		);
+
+	if (!EnemyController ||
+		!EnemyController->LineOfSightTo(
+			Target,
+			FVector::ZeroVector,
+			true
+		))
+	{
+		return;
+	}
+
+	FVector DirectionToTarget =
+		Target->GetActorLocation() -
 		GetActorLocation();
 
-	AttackDirection.Z = 0.0f;
+	DirectionToTarget.Z = 0.0f;
 
-	if (!AttackDirection.Normalize())
+	if (!DirectionToTarget.IsNearlyZero())
 	{
-		return false;
+		SetActorRotation(
+			DirectionToTarget.Rotation()
+		);
 	}
-
-	const FRotator AttackRotation =
-		AttackDirection.Rotation();
-
-	SetActorRotation(
-		FRotator(
-			0.0f,
-			AttackRotation.Yaw,
-			0.0f
-		)
-	);
 
 	bCanAttack = false;
 
@@ -191,64 +243,70 @@ bool AAshenTrainingEnemy::TryAttack(
 		AttackCooldownTimerHandle,
 		this,
 		&AAshenTrainingEnemy::
-		ResetAttackCooldown,
+			ResetAttackCooldown,
 		AttackCooldown,
 		false
 	);
 
-	MulticastPlayAttackCue();
-
 	const float AppliedDamage =
-		TargetAttributeComponent->ApplyDamage(
+		TargetAttributes->ApplyDamage(
 			AttackDamage
 		);
 
-	if (bDrawAttackDebug)
+	if (AppliedDamage <= 0.0f)
 	{
-		const FVector DebugLocation =
-			GetActorLocation() +
-			FVector(0.0f, 0.0f, 55.0f) +
-			AttackDirection * AttackRange;
+		return;
+	}
 
+	MulticastPlayAttackCue();
+
+	if (bDrawAttackDebug && GetWorld())
+	{
 		DrawDebugSphere(
 			GetWorld(),
-			DebugLocation,
+			Target->GetActorLocation() +
+				FVector(0.0f, 0.0f, 50.0f),
 			AttackRadius,
-			18,
-			AppliedDamage > 0.0f
-			? FColor::Red
-			: FColor::Green,
+			16,
+			FColor::Orange,
 			false,
-			0.5f,
+			0.6f,
 			0,
 			2.0f
 		);
 	}
-
-	UE_LOG(
-		LogTemp,
-		Log,
-		TEXT(
-			"%s attacked %s for %.1f damage."
-		),
-		*GetName(),
-		*TargetActor->GetName(),
-		AppliedDamage
-	);
-
-	return AppliedDamage > 0.0f;
 }
 
 void AAshenTrainingEnemy::
-ResetAttackCooldown()
+	MulticastPlayAttackCue_Implementation()
+{
+	PlayAttackAnimationLocally();
+
+	if (AttackSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(
+			this,
+			AttackSound,
+			GetActorLocation(),
+			AttackSoundVolume
+		);
+	}
+
+	/*
+	 * Keep the old Blueprint montage hook only when the direct
+	 * animation system is disabled. This prevents an incompatible
+	 * Manny montage from interrupting the Paragon animation asset.
+	 */
+	if (!bUseSimpleAnimationSystem)
+	{
+		BP_OnAttack();
+	}
+}
+
+void AAshenTrainingEnemy::
+	ResetAttackCooldown()
 {
 	bCanAttack = true;
-}
-
-void AAshenTrainingEnemy::
-MulticastPlayAttackCue_Implementation()
-{
-	BP_OnAttack();
 }
 
 void AAshenTrainingEnemy::HandleDeath()
@@ -265,46 +323,79 @@ void AAshenTrainingEnemy::HandleDeath()
 		AttackCooldownTimerHandle
 	);
 
+	GetWorldTimerManager().ClearTimer(
+		SimpleAttackAnimationTimerHandle
+	);
+
+	if (AAIController* EnemyController =
+		Cast<AAIController>(
+			GetController()
+		))
+	{
+		EnemyController->StopMovement();
+	}
+
+	if (HealthWidgetComponent)
+	{
+		HealthWidgetComponent->
+			SetVisibility(false);
+	}
+
+	MulticastPlayDeathSound(
+		GetActorLocation()
+	);
+
 	ApplyDeathState();
 	ForceNetUpdate();
 }
 
+void AAshenTrainingEnemy::
+	MulticastPlayDeathSound_Implementation(
+		FVector_NetQuantize DeathLocation
+	)
+{
+	if (!DeathSound)
+	{
+		return;
+	}
+
+	UGameplayStatics::PlaySoundAtLocation(
+		this,
+		DeathSound,
+		DeathLocation,
+		DeathSoundVolume
+	);
+}
+
 void AAshenTrainingEnemy::OnRep_IsDead()
 {
-	if (bIsDead)
+	if (!bIsDead)
 	{
-		ApplyDeathState();
+		return;
 	}
+
+	if (HealthWidgetComponent)
+	{
+		HealthWidgetComponent->
+			SetVisibility(false);
+	}
+
+	ApplyDeathState();
 }
 
 void AAshenTrainingEnemy::ApplyDeathState()
 {
-	if (HealthWidgetComponent)
-	{
-		HealthWidgetComponent->SetVisibility(
-			false
-		);
-	}
+	GetWorldTimerManager().ClearTimer(
+		SimpleAttackAnimationTimerHandle
+	);
 
-	if (AAIController* EnemyController =
-		Cast<AAIController>(Controller))
-	{
-		EnemyController->StopMovement();
+	bAttackAnimationPlaying = false;
 
-		EnemyController->ClearFocus(
-			EAIFocusPriority::Gameplay
-		);
-	}
-
-	if (UCharacterMovementComponent*
-		MovementComponent =
+	if (UCharacterMovementComponent* Movement =
 		GetCharacterMovement())
 	{
-		MovementComponent->
-			StopMovementImmediately();
-
-		MovementComponent->
-			DisableMovement();
+		Movement->StopMovementImmediately();
+		Movement->DisableMovement();
 	}
 
 	if (UCapsuleComponent* Capsule =
@@ -323,6 +414,31 @@ void AAshenTrainingEnemy::ApplyDeathState()
 		return;
 	}
 
+	/*
+	 * A dedicated death animation is more reliable for imported
+	 * Paragon characters than forcing their demo AnimBP or an
+	 * incompatible ragdoll setup.
+	 */
+	if (bUseSimpleAnimationSystem &&
+		IsValid(DeathAnimation))
+	{
+		EnemyMesh->SetSimulatePhysics(false);
+
+		EnemyMesh->SetCollisionEnabled(
+			ECollisionEnabled::NoCollision
+		);
+
+		PlaySimpleAnimation(
+			DeathAnimation,
+			false
+		);
+
+		return;
+	}
+
+	/*
+	 * Fallback: use ragdoll when no death animation is assigned.
+	 */
 	EnemyMesh->SetCollisionProfileName(
 		TEXT("Ragdoll")
 	);
@@ -343,13 +459,124 @@ void AAshenTrainingEnemy::ApplyDeathState()
 	{
 		const FVector ImpulseDirection =
 			-GetActorForwardVector() +
-			FVector::UpVector * 0.35f;
+			FVector::UpVector * 0.25f;
 
 		EnemyMesh->AddImpulse(
 			ImpulseDirection.GetSafeNormal() *
-			DeathImpulse,
+				DeathImpulse,
 			NAME_None,
 			true
 		);
 	}
+}
+
+void AAshenTrainingEnemy::
+	UpdateSimpleAnimation()
+{
+	if (!bUseSimpleAnimationSystem ||
+		bIsDead ||
+		bAttackAnimationPlaying)
+	{
+		return;
+	}
+
+	const float MovementSpeed =
+		GetVelocity().Size2D();
+
+	UAnimationAsset* DesiredAnimation =
+		MovementSpeed >
+			MoveAnimationSpeedThreshold
+			? WalkAnimation
+			: IdleAnimation;
+
+	if (!IsValid(DesiredAnimation))
+	{
+		return;
+	}
+
+	PlaySimpleAnimation(
+		DesiredAnimation,
+		true
+	);
+}
+
+void AAshenTrainingEnemy::
+	PlaySimpleAnimation(
+		UAnimationAsset* Animation,
+		bool bLooping
+	)
+{
+	if (!bUseSimpleAnimationSystem ||
+		!IsValid(Animation))
+	{
+		return;
+	}
+
+	USkeletalMeshComponent* EnemyMesh =
+		GetMesh();
+
+	if (!EnemyMesh)
+	{
+		return;
+	}
+
+	if (CurrentSimpleAnimation == Animation &&
+		bCurrentAnimationLooping == bLooping &&
+		EnemyMesh->IsPlaying())
+	{
+		return;
+	}
+
+	EnemyMesh->SetAnimationMode(
+		EAnimationMode::AnimationSingleNode,
+		true
+	);
+
+	EnemyMesh->PlayAnimation(
+		Animation,
+		bLooping
+	);
+
+	CurrentSimpleAnimation = Animation;
+	bCurrentAnimationLooping = bLooping;
+}
+
+void AAshenTrainingEnemy::
+	PlayAttackAnimationLocally()
+{
+	if (!bUseSimpleAnimationSystem ||
+		!IsValid(AttackAnimation) ||
+		bIsDead)
+	{
+		return;
+	}
+
+	bAttackAnimationPlaying = true;
+
+	PlaySimpleAnimation(
+		AttackAnimation,
+		false
+	);
+
+	const float AnimationDuration =
+		FMath::Max(
+			AttackAnimation->GetPlayLength(),
+			0.1f
+		);
+
+	GetWorldTimerManager().SetTimer(
+		SimpleAttackAnimationTimerHandle,
+		this,
+		&AAshenTrainingEnemy::
+			FinishAttackAnimationLocally,
+		AnimationDuration,
+		false
+	);
+}
+
+void AAshenTrainingEnemy::
+	FinishAttackAnimationLocally()
+{
+	bAttackAnimationPlaying = false;
+	UpdateSimpleAnimation();
 }

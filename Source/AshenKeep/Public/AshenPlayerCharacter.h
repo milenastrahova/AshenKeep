@@ -8,11 +8,14 @@
 #include "AshenPlayerHUDWidget.h"
 #include "AshenPlayerCharacter.generated.h"
 
+class UAnimationAsset;
 class UCameraComponent;
 class USpringArmComponent;
 class UInputAction;
 class UInputMappingContext;
 class UInputComponent;
+class UAshenLockOnComponent;
+class USoundBase;
 
 UCLASS()
 class ASHENKEEP_API AAshenPlayerCharacter : public ACharacter
@@ -21,6 +24,8 @@ class ASHENKEEP_API AAshenPlayerCharacter : public ACharacter
 
 public:
 	AAshenPlayerCharacter();
+
+	virtual void Tick(float DeltaSeconds) override;
 
 	virtual void SetupPlayerInputComponent(
 		UInputComponent* PlayerInputComponent
@@ -48,6 +53,24 @@ public:
 		return bIsDead;
 	}
 
+	UFUNCTION(
+		BlueprintPure,
+		Category = "Ashen Keep|Mist Step"
+	)
+	bool IsMistStepping() const
+	{
+		return bIsMistStepping;
+	}
+
+	UFUNCTION(
+		BlueprintPure,
+		Category = "Ashen Keep|Lock On"
+	)
+	UAshenLockOnComponent* GetLockOnComponent() const
+	{
+		return LockOnTargetingComponent;
+	}
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void NotifyControllerChanged() override;
@@ -61,6 +84,7 @@ protected:
 
 	void Dodge(const FInputActionValue& Value);
 	void Attack(const FInputActionValue& Value);
+	void ToggleLockOn(const FInputActionValue& Value);
 
 	UPROPERTY(
 		EditDefaultsOnly,
@@ -121,10 +145,9 @@ protected:
 	UPROPERTY(
 		EditDefaultsOnly,
 		BlueprintReadOnly,
-		Category = "Ashen Keep|Camera",
-		meta = (ClampMin = "0.05")
+		Category = "Ashen Keep|Input"
 	)
-	float LookSensitivityX = 0.75f;
+	TObjectPtr<UInputAction> LockOnAction;
 
 	UPROPERTY(
 		EditDefaultsOnly,
@@ -132,7 +155,15 @@ protected:
 		Category = "Ashen Keep|Camera",
 		meta = (ClampMin = "0.05")
 	)
-	float LookSensitivityY = 0.65f;
+	float LookSensitivityX = 0.45f;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Camera",
+		meta = (ClampMin = "0.05")
+	)
+	float LookSensitivityY = 0.35f;
 
 	UPROPERTY(
 		EditDefaultsOnly,
@@ -177,23 +208,23 @@ protected:
 	UPROPERTY(
 		EditDefaultsOnly,
 		BlueprintReadOnly,
-		Category = "Ashen Keep|Dodge",
+		Category = "Ashen Keep|Mist Step",
 		meta = (ClampMin = "0.0")
 	)
-	float DodgeStrength = 900.0f;
+	float DodgeStrength = 1150.0f;
 
 	UPROPERTY(
 		EditDefaultsOnly,
 		BlueprintReadOnly,
-		Category = "Ashen Keep|Dodge",
+		Category = "Ashen Keep|Mist Step",
 		meta = (ClampMin = "0.0")
 	)
-	float DodgeVerticalBoost = 90.0f;
+	float DodgeVerticalBoost = 35.0f;
 
 	UPROPERTY(
 		EditDefaultsOnly,
 		BlueprintReadOnly,
-		Category = "Ashen Keep|Dodge",
+		Category = "Ashen Keep|Mist Step",
 		meta = (ClampMin = "0.0")
 	)
 	float DodgeStaminaCost = 25.0f;
@@ -201,10 +232,18 @@ protected:
 	UPROPERTY(
 		EditDefaultsOnly,
 		BlueprintReadOnly,
-		Category = "Ashen Keep|Dodge",
+		Category = "Ashen Keep|Mist Step",
 		meta = (ClampMin = "0.1")
 	)
 	float DodgeCooldown = 0.75f;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Mist Step",
+		meta = (ClampMin = "0.05")
+	)
+	float MistStepDuration = 0.22f;
 
 	UPROPERTY(
 		EditDefaultsOnly,
@@ -220,7 +259,7 @@ protected:
 		Category = "Ashen Keep|Combat",
 		meta = (ClampMin = "0.0")
 	)
-	float AttackRange = 175.0f;
+	float AttackRange = 240.0f;
 
 	UPROPERTY(
 		EditDefaultsOnly,
@@ -228,7 +267,7 @@ protected:
 		Category = "Ashen Keep|Combat",
 		meta = (ClampMin = "1.0")
 	)
-	float AttackRadius = 55.0f;
+	float AttackRadius = 100.0f;
 
 	UPROPERTY(
 		EditDefaultsOnly,
@@ -236,7 +275,7 @@ protected:
 		Category = "Ashen Keep|Combat",
 		meta = (ClampMin = "0.0")
 	)
-	float AttackStaminaCost = 20.0f;
+	float AttackStaminaCost = 10.0f;
 
 	UPROPERTY(
 		EditDefaultsOnly,
@@ -244,7 +283,7 @@ protected:
 		Category = "Ashen Keep|Combat",
 		meta = (ClampMin = "0.1")
 	)
-	float AttackCooldown = 0.6f;
+	float AttackCooldown = 0.45f;
 
 	UPROPERTY(
 		EditDefaultsOnly,
@@ -277,6 +316,114 @@ protected:
 	)
 	float DeathImpulse = 180.0f;
 
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Audio"
+	)
+	TObjectPtr<USoundBase> AttackSwingSound;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Audio"
+	)
+	TObjectPtr<USoundBase> AttackHitSound;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Audio",
+		meta = (ClampMin = "0.0")
+	)
+	float AttackSwingVolume = 0.72f;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Audio",
+		meta = (ClampMin = "0.0")
+	)
+	float AttackHitVolume = 0.82f;
+
+	/*
+	 * Paragon demo Animation Blueprints depend on obsolete sample
+	 * PlayerCharacter classes. Ashen Keep uses compatible animation
+	 * sequences directly through AnimationSingleNode instead.
+	 */
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Animation"
+	)
+	bool bUseSimpleAnimationSystem = true;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Animation"
+	)
+	TObjectPtr<UAnimationAsset> IdleAnimation;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Animation"
+	)
+	TObjectPtr<UAnimationAsset> WalkAnimation;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Animation"
+	)
+	TObjectPtr<UAnimationAsset> AttackAnimation;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Animation"
+	)
+	TObjectPtr<UAnimationAsset> DeathAnimation;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Animation",
+		meta = (ClampMin = "0.0")
+	)
+	float MoveAnimationSpeedThreshold = 10.0f;
+
+	/*
+	 * Countess uses one compatible locomotion sequence for both moving and
+	 * standing. Only the play rate changes, so stopping never snaps to a
+	 * different pose or animation asset.
+	 */
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Animation",
+		meta = (ClampMin = "0.0", ClampMax = "1.0")
+	)
+	float IdleLocomotionPlayRate = 0.08f;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Animation",
+		meta = (ClampMin = "0.1")
+	)
+	float MovingLocomotionPlayRate = 1.0f;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Animation",
+		meta = (ClampMin = "0.1")
+	)
+	float LocomotionPlayRateInterpSpeed = 7.0f;
+
 	UFUNCTION(
 		BlueprintImplementableEvent,
 		Category = "Ashen Keep|Vampire",
@@ -285,6 +432,16 @@ protected:
 	void BP_OnVampiricRecovery(
 		float HealthRestored,
 		float BloodRestored
+	);
+
+	UFUNCTION(
+		BlueprintImplementableEvent,
+		Category = "Ashen Keep|Mist Step",
+		meta = (DisplayName = "On Mist Step")
+	)
+	void BP_OnMistStep(
+		FVector StartLocation,
+		FVector Direction
 	);
 
 private:
@@ -299,17 +456,31 @@ private:
 	UFUNCTION(Server, Reliable)
 	void ServerAttack();
 
-	UFUNCTION(
-		NetMulticast,
-		Unreliable
-	)
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastPlayAttackAnimationCue();
+
+	UFUNCTION(NetMulticast, Unreliable)
+	void MulticastPlayAttackHitSound(
+		FVector_NetQuantize HitLocation
+	);
+
+	UFUNCTION(NetMulticast, Unreliable)
 	void MulticastPlayVampiricRecoveryCue(
 		float HealthRestored,
 		float BloodRestored
 	);
 
+	UFUNCTION(NetMulticast, Unreliable)
+	void MulticastPlayMistStepCue(
+		FVector_NetQuantize StartLocation,
+		FVector_NetQuantizeNormal Direction
+	);
+
 	UFUNCTION()
 	void OnRep_IsSprinting();
+
+	UFUNCTION()
+	void OnRep_IsMistStepping();
 
 	UFUNCTION()
 	void HandleDeath();
@@ -326,10 +497,20 @@ private:
 	void StopStaminaTimers();
 
 	void PerformDodge(const FVector& DodgeDirection);
+	void EndMistStep();
+	void ApplyMistStepState();
 	void ResetDodgeCooldown();
 
 	void PerformAttack();
 	void ResetAttackCooldown();
+
+	void UpdateSimpleAnimation(float DeltaSeconds);
+	void PlaySimpleAnimation(
+		UAnimationAsset* Animation,
+		bool bLooping
+	);
+	void PlayAttackAnimationLocally();
+	void FinishAttackAnimationLocally();
 
 	void ApplyVampiricKillReward();
 	void ApplyDeathState();
@@ -365,6 +546,14 @@ private:
 	TObjectPtr<UAshenAttributeComponent> AttributeComponent;
 
 	UPROPERTY(
+		VisibleAnywhere,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Lock On",
+		meta = (AllowPrivateAccess = "true")
+	)
+	TObjectPtr<UAshenLockOnComponent> LockOnTargetingComponent;
+
+	UPROPERTY(
 		ReplicatedUsing = OnRep_IsSprinting,
 		VisibleInstanceOnly,
 		BlueprintReadOnly,
@@ -372,6 +561,15 @@ private:
 		meta = (AllowPrivateAccess = "true")
 	)
 	bool bIsSprinting = false;
+
+	UPROPERTY(
+		ReplicatedUsing = OnRep_IsMistStepping,
+		VisibleInstanceOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Mist Step",
+		meta = (AllowPrivateAccess = "true")
+	)
+	bool bIsMistStepping = false;
 
 	UPROPERTY(
 		ReplicatedUsing = OnRep_IsDead,
@@ -390,8 +588,22 @@ private:
 	FTimerHandle StaminaRegenerationTimerHandle;
 
 	bool bCanDodge = true;
+
 	FTimerHandle DodgeCooldownTimerHandle;
+	FTimerHandle MistStepTimerHandle;
 
 	bool bCanAttack = true;
+	bool bAttackAnimationPlaying = false;
+	bool bCurrentAnimationLooping = false;
+	float CurrentLocomotionPlayRate = 0.08f;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimationAsset> CurrentSimpleAnimation;
+
 	FTimerHandle AttackCooldownTimerHandle;
+	FTimerHandle SimpleAttackAnimationTimerHandle;
+
+	// Важно: обычный ECollisionResponse,
+	// а не TEnumAsByte.
+	ECollisionResponse OriginalPawnCollisionResponse = ECR_Block;
 };

@@ -2,38 +2,37 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
-#include "TimerManager.h"
 #include "AshenTrainingEnemy.generated.h"
 
+class UAnimationAsset;
 class UAshenAttributeComponent;
 class UWidgetComponent;
+class AAshenPlayerCharacter;
+class USoundBase;
 
 UCLASS()
-class ASHENKEEP_API AAshenTrainingEnemy
-	: public ACharacter
+class ASHENKEEP_API AAshenTrainingEnemy : public ACharacter
 {
 	GENERATED_BODY()
 
 public:
 	AAshenTrainingEnemy();
 
+	virtual void Tick(float DeltaSeconds) override;
+
 	virtual void GetLifetimeReplicatedProps(
 		TArray<FLifetimeProperty>& OutLifetimeProps
 	) const override;
 
 	UFUNCTION(
-		BlueprintPure,
-		Category = "Ashen Keep|Attributes"
+		BlueprintCallable,
+		Category = "Ashen Keep|Combat"
 	)
-	UAshenAttributeComponent*
-		GetAttributeComponent() const
-	{
-		return AttributeComponent;
-	}
+	void TryAttack(AAshenPlayerCharacter* Target);
 
 	UFUNCTION(
 		BlueprintPure,
-		Category = "Ashen Keep|Combat"
+		Category = "Ashen Keep|Enemy"
 	)
 	bool IsDead() const
 	{
@@ -50,10 +49,13 @@ public:
 	}
 
 	UFUNCTION(
-		BlueprintCallable,
-		Category = "Ashen Keep|Combat"
+		BlueprintPure,
+		Category = "Ashen Keep|Attributes"
 	)
-	bool TryAttack(AActor* TargetActor);
+	UAshenAttributeComponent* GetAttributeComponent() const
+	{
+		return AttributeComponent;
+	}
 
 protected:
 	virtual void BeginPlay() override;
@@ -63,16 +65,14 @@ protected:
 		BlueprintReadOnly,
 		Category = "Ashen Keep|Attributes"
 	)
-	TObjectPtr<UAshenAttributeComponent>
-		AttributeComponent;
+	TObjectPtr<UAshenAttributeComponent> AttributeComponent;
 
 	UPROPERTY(
 		VisibleAnywhere,
 		BlueprintReadOnly,
 		Category = "Ashen Keep|UI"
 	)
-	TObjectPtr<UWidgetComponent>
-		HealthWidgetComponent;
+	TObjectPtr<UWidgetComponent> HealthWidgetComponent;
 
 	UPROPERTY(
 		EditDefaultsOnly,
@@ -88,7 +88,7 @@ protected:
 		Category = "Ashen Keep|Combat",
 		meta = (ClampMin = "0.0")
 	)
-	float AttackDamage = 20.0f;
+	float AttackDamage = 15.0f;
 
 	UPROPERTY(
 		EditDefaultsOnly,
@@ -102,24 +102,24 @@ protected:
 		EditDefaultsOnly,
 		BlueprintReadOnly,
 		Category = "Ashen Keep|Combat",
-		meta = (ClampMin = "1.0")
+		meta = (ClampMin = "0.0")
 	)
-	float AttackRadius = 60.0f;
+	float AttackRadius = 80.0f;
 
 	UPROPERTY(
 		EditDefaultsOnly,
 		BlueprintReadOnly,
 		Category = "Ashen Keep|Combat",
-		meta = (ClampMin = "0.1")
+		meta = (ClampMin = "0.0")
 	)
-	float AttackCooldown = 1.2f;
+	float AttackCooldown = 1.25f;
 
 	UPROPERTY(
 		EditDefaultsOnly,
 		BlueprintReadOnly,
-		Category = "Ashen Keep|Combat"
+		Category = "Ashen Keep|Combat|Debug"
 	)
-	bool bDrawAttackDebug = true;
+	bool bDrawAttackDebug = false;
 
 	UPROPERTY(
 		EditDefaultsOnly,
@@ -127,39 +127,136 @@ protected:
 		Category = "Ashen Keep|Death",
 		meta = (ClampMin = "0.0")
 	)
-	float DeathImpulse = 250.0f;
+	float DeathImpulse = 500.0f;
+
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Audio"
+	)
+	TObjectPtr<USoundBase> AttackSound;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Audio"
+	)
+	TObjectPtr<USoundBase> DeathSound;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Audio",
+		meta = (ClampMin = "0.0")
+	)
+	float AttackSoundVolume = 0.62f;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Audio",
+		meta = (ClampMin = "0.0")
+	)
+	float DeathSoundVolume = 0.78f;
+
+	/*
+	 * The imported Paragon Animation Blueprints expect their own
+	 * demonstration PlayerCharacter classes. Our AI enemies use a
+	 * reliable animation-asset player instead.
+	 */
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Animation"
+	)
+	bool bUseSimpleAnimationSystem = true;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Animation"
+	)
+	TObjectPtr<UAnimationAsset> IdleAnimation;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Animation"
+	)
+	TObjectPtr<UAnimationAsset> WalkAnimation;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Animation"
+	)
+	TObjectPtr<UAnimationAsset> AttackAnimation;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Animation"
+	)
+	TObjectPtr<UAnimationAsset> DeathAnimation;
+
+	UPROPERTY(
+		EditDefaultsOnly,
+		BlueprintReadOnly,
+		Category = "Ashen Keep|Animation",
+		meta = (ClampMin = "0.0")
+	)
+	float MoveAnimationSpeedThreshold = 10.0f;
 
 	UFUNCTION(
 		BlueprintImplementableEvent,
-		Category = "Ashen Keep|Combat",
-		meta = (DisplayName = "On Enemy Attack")
+		Category = "Ashen Keep|Animation"
 	)
 	void BP_OnAttack();
 
 private:
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastPlayAttackCue();
+
+	UFUNCTION(NetMulticast, Unreliable)
+	void MulticastPlayDeathSound(
+		FVector_NetQuantize DeathLocation
+	);
+
+	UFUNCTION()
+	void ResetAttackCooldown();
+
 	UFUNCTION()
 	void HandleDeath();
 
 	UFUNCTION()
 	void OnRep_IsDead();
 
-	UFUNCTION(
-		NetMulticast,
-		Unreliable
-	)
-	void MulticastPlayAttackCue();
-
 	void ApplyDeathState();
-	void ResetAttackCooldown();
+
+	void UpdateSimpleAnimation();
+
+	void PlaySimpleAnimation(
+		UAnimationAsset* Animation,
+		bool bLooping
+	);
+
+	void PlayAttackAnimationLocally();
+
+	void FinishAttackAnimationLocally();
 
 	UPROPERTY(
-		ReplicatedUsing = OnRep_IsDead,
-		VisibleInstanceOnly,
-		Category = "Ashen Keep|Death"
+		ReplicatedUsing = OnRep_IsDead
 	)
 	bool bIsDead = false;
 
 	bool bCanAttack = true;
+	bool bAttackAnimationPlaying = false;
+	bool bCurrentAnimationLooping = false;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimationAsset> CurrentSimpleAnimation;
 
 	FTimerHandle AttackCooldownTimerHandle;
+	FTimerHandle SimpleAttackAnimationTimerHandle;
 };

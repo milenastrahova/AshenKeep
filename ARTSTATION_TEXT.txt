@@ -1,0 +1,24 @@
+ASHEN KEEP: BLOOD HUNT
+
+Ashen Keep: Blood Hunt is a compact dark-fantasy Unreal Engine 5 vertical
+slice built primarily in C++.
+
+Play as an ancient vampire reclaiming her castle from monster hunters before
+they complete a purge ritual. The project includes server-authoritative melee
+combat, Mist Step, Blood Burst, vampiric recovery, lock-on targeting, hunter
+AI, a captain encounter, replicated objectives, a custom HUD, main menu,
+victory screen, original music and original sound effects.
+
+TECHNICAL FOCUS
+• Unreal Engine 5 C++ and Blueprint integration
+• Component-based gameplay architecture
+• RPCs, actor replication and multiplayer validation
+• AI vision cone, line of sight, pursuit and combat
+• Automated tests for attributes and replication
+• CPU, GPU, memory and network profiling
+• Windows Shipping build
+
+MY RESPONSIBILITIES
+Gameplay programming, systems design, Blueprint integration, UI/UX,
+level assembly, lighting, character setup, debugging, profiling, testing,
+audio creation and final presentation.

@@ -72,3 +72,24 @@ Plugins/**/Intermediate/*
 
 # Cache files for the editor to use
 DerivedDataCache/*
+
+# Generated local files
+*.slnx
+_AshenKeep_Backup_*/
+
+
+# Local Unreal build output and generated files
+/Windows/
+/WindowsNoEditor/
+/StagedBuilds/
+/Packaged/
+/PackagedBuilds/
+/Binaries/
+/DerivedDataCache/
+/Intermediate/
+/Saved/
+/.vs/
+
+# Public portfolio repository scope
+# Third-party Unreal/Fab assets and generated builds stay local.
+/Content/

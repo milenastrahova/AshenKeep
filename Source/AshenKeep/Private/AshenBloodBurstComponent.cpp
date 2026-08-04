@@ -8,13 +8,30 @@
 #include "Engine/OverlapResult.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
+#include "Kismet/GameplayStatics.h"
+#include "Sound/SoundBase.h"
 #include "TimerManager.h"
+#include "UObject/ConstructorHelpers.h"
 
 UAshenBloodBurstComponent::UAshenBloodBurstComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
 
 	SetIsReplicatedByDefault(true);
+
+	static ConstructorHelpers::FObjectFinder<USoundBase>
+		BloodBurstSoundFinder(
+			TEXT(
+				"/Game/Audio/SFX/S_Ashen_BloodBurst."
+				"S_Ashen_BloodBurst"
+			)
+		);
+
+	if (BloodBurstSoundFinder.Succeeded())
+	{
+		BloodBurstSound =
+			BloodBurstSoundFinder.Object;
+	}
 }
 
 void UAshenBloodBurstComponent::BeginPlay()
@@ -271,6 +288,16 @@ MulticastBloodBurstCue_Implementation(
 	int32 HuntersHit
 )
 {
+	if (BloodBurstSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(
+			this,
+			BloodBurstSound,
+			BurstLocation,
+			BloodBurstSoundVolume
+		);
+	}
+
 	BP_OnBloodBurst(
 		BurstLocation,
 		BurstRadius,

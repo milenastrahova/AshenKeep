@@ -1,8 +1,12 @@
 #include "AshenPlayerCharacter.h"
 
 #include "AshenAttributeComponent.h"
+#include "AshenLockOnComponent.h"
 #include "AshenPlayerHUDWidget.h"
 #include "AshenTrainingEnemy.h"
+
+#include "Animation/AnimationAsset.h"
+#include "Animation/AnimSingleNodeInstance.h"
 #include "Camera/CameraComponent.h"
 #include "CollisionShape.h"
 #include "Components/CapsuleComponent.h"
@@ -18,11 +22,15 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "InputAction.h"
 #include "InputMappingContext.h"
+#include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
+#include "Sound/SoundBase.h"
+#include "UObject/ConstructorHelpers.h"
 
 AAshenPlayerCharacter::AAshenPlayerCharacter()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.TickInterval = 0.05f;
 
 	bReplicates = true;
 	SetReplicateMovement(true);
@@ -30,6 +38,11 @@ AAshenPlayerCharacter::AAshenPlayerCharacter()
 	AttributeComponent =
 		CreateDefaultSubobject<UAshenAttributeComponent>(
 			TEXT("AttributeComponent")
+		);
+
+	LockOnTargetingComponent =
+		CreateDefaultSubobject<UAshenLockOnComponent>(
+			TEXT("LockOnTargetingComponent")
 		);
 
 	bUseControllerRotationPitch = false;
@@ -51,13 +64,13 @@ AAshenPlayerCharacter::AAshenPlayerCharacter()
 		);
 
 	CameraBoom->SetupAttachment(RootComponent);
-	CameraBoom->TargetArmLength = 400.0f;
+	CameraBoom->TargetArmLength = 330.0f;
+	CameraBoom->SocketOffset =
+		FVector(0.0f, 55.0f, 60.0f);
+
 	CameraBoom->bUsePawnControlRotation = true;
-	CameraBoom->bEnableCameraLag = true;
-	CameraBoom->CameraLagSpeed = 12.0f;
-	CameraBoom->CameraLagMaxDistance = 35.0f;
-	CameraBoom->bEnableCameraRotationLag = true;
-	CameraBoom->CameraRotationLagSpeed = 15.0f;
+	CameraBoom->bEnableCameraLag = false;
+	CameraBoom->bEnableCameraRotationLag = false;
 
 	FollowCamera =
 		CreateDefaultSubobject<UCameraComponent>(
@@ -70,6 +83,34 @@ AAshenPlayerCharacter::AAshenPlayerCharacter()
 	);
 
 	FollowCamera->bUsePawnControlRotation = false;
+
+	static ConstructorHelpers::FObjectFinder<USoundBase>
+		AttackSwingSoundFinder(
+			TEXT(
+				"/Game/Audio/SFX/S_Ashen_SwordSwing."
+				"S_Ashen_SwordSwing"
+			)
+		);
+
+	if (AttackSwingSoundFinder.Succeeded())
+	{
+		AttackSwingSound =
+			AttackSwingSoundFinder.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<USoundBase>
+		AttackHitSoundFinder(
+			TEXT(
+				"/Game/Audio/SFX/S_Ashen_Hit."
+				"S_Ashen_Hit"
+			)
+		);
+
+	if (AttackHitSoundFinder.Succeeded())
+	{
+		AttackHitSound =
+			AttackHitSoundFinder.Object;
+	}
 }
 
 void AAshenPlayerCharacter::BeginPlay()
@@ -84,8 +125,32 @@ void AAshenPlayerCharacter::BeginPlay()
 		);
 	}
 
+	if (GetCapsuleComponent())
+	{
+		OriginalPawnCollisionResponse =
+			GetCapsuleComponent()->
+			GetCollisionResponseToChannel(
+				ECC_Pawn
+			);
+	}
+
 	ApplyMovementSpeed();
+	ApplyMistStepState();
 	CreatePlayerHUD();
+
+	if (bUseSimpleAnimationSystem)
+	{
+		UpdateSimpleAnimation(0.0f);
+	}
+}
+
+void AAshenPlayerCharacter::Tick(
+	float DeltaSeconds
+)
+{
+	Super::Tick(DeltaSeconds);
+
+	UpdateSimpleAnimation(DeltaSeconds);
 }
 
 void AAshenPlayerCharacter::GetLifetimeReplicatedProps(
@@ -97,6 +162,11 @@ void AAshenPlayerCharacter::GetLifetimeReplicatedProps(
 	DOREPLIFETIME(
 		AAshenPlayerCharacter,
 		bIsSprinting
+	);
+
+	DOREPLIFETIME(
+		AAshenPlayerCharacter,
+		bIsMistStepping
 	);
 
 	DOREPLIFETIME(
@@ -253,6 +323,16 @@ void AAshenPlayerCharacter::SetupPlayerInputComponent(
 			&AAshenPlayerCharacter::Attack
 		);
 	}
+
+	if (LockOnAction)
+	{
+		EnhancedInput->BindAction(
+			LockOnAction,
+			ETriggerEvent::Started,
+			this,
+			&AAshenPlayerCharacter::ToggleLockOn
+		);
+	}
 }
 
 void AAshenPlayerCharacter::Move(
@@ -304,13 +384,19 @@ void AAshenPlayerCharacter::StopMove(
 	const FInputActionValue& Value
 )
 {
-	CachedMovementInput = FVector2D::ZeroVector;
+	CachedMovementInput =
+		FVector2D::ZeroVector;
 }
 
 void AAshenPlayerCharacter::Look(
 	const FInputActionValue& Value
 )
 {
+	if (bIsDead)
+	{
+		return;
+	}
+
 	const FVector2D LookInput =
 		Value.Get<FVector2D>();
 
@@ -319,8 +405,21 @@ void AAshenPlayerCharacter::Look(
 	);
 
 	AddControllerPitchInput(
-		LookInput.Y * LookSensitivityY
+		-LookInput.Y * LookSensitivityY
 	);
+}
+
+void AAshenPlayerCharacter::ToggleLockOn(
+	const FInputActionValue& Value
+)
+{
+	if (bIsDead ||
+		!LockOnTargetingComponent)
+	{
+		return;
+	}
+
+	LockOnTargetingComponent->ToggleLockOn();
 }
 
 void AAshenPlayerCharacter::StartSprint(
@@ -328,6 +427,7 @@ void AAshenPlayerCharacter::StartSprint(
 )
 {
 	if (bIsDead ||
+		bIsMistStepping ||
 		!AttributeComponent ||
 		!AttributeComponent->IsAlive() ||
 		!AttributeComponent->HasEnoughStamina(1.0f))
@@ -363,7 +463,7 @@ void AAshenPlayerCharacter::ServerSetSprinting_Implementation(
 	bool bNewSprinting
 )
 {
-	if (bIsDead)
+	if (bIsDead || bIsMistStepping)
 	{
 		SetSprinting(false);
 		return;
@@ -393,7 +493,7 @@ void AAshenPlayerCharacter::SetSprinting(
 		return;
 	}
 
-	if (bIsDead)
+	if (bIsDead || bIsMistStepping)
 	{
 		bNewSprinting = false;
 	}
@@ -444,6 +544,7 @@ void AAshenPlayerCharacter::UpdateSprintStamina()
 {
 	if (!HasAuthority() ||
 		bIsDead ||
+		bIsMistStepping ||
 		!bIsSprinting ||
 		!AttributeComponent ||
 		!AttributeComponent->IsAlive())
@@ -543,6 +644,7 @@ void AAshenPlayerCharacter::Dodge(
 )
 {
 	if (bIsDead ||
+		bIsMistStepping ||
 		!AttributeComponent ||
 		!AttributeComponent->IsAlive() ||
 		!AttributeComponent->HasEnoughStamina(
@@ -579,6 +681,7 @@ void AAshenPlayerCharacter::PerformDodge(
 {
 	if (!HasAuthority() ||
 		bIsDead ||
+		bIsMistStepping ||
 		!bCanDodge ||
 		!AttributeComponent ||
 		!AttributeComponent->IsAlive() ||
@@ -620,6 +723,18 @@ void AAshenPlayerCharacter::PerformDodge(
 	}
 
 	bCanDodge = false;
+	bIsMistStepping = true;
+
+	ApplyMistStepState();
+	ForceNetUpdate();
+
+	const FVector StartLocation =
+		GetActorLocation();
+
+	MulticastPlayMistStepCue(
+		StartLocation,
+		SafeDirection
+	);
 
 	const FVector LaunchVelocity =
 		SafeDirection * DodgeStrength +
@@ -632,11 +747,73 @@ void AAshenPlayerCharacter::PerformDodge(
 	);
 
 	GetWorldTimerManager().SetTimer(
+		MistStepTimerHandle,
+		this,
+		&AAshenPlayerCharacter::EndMistStep,
+		MistStepDuration,
+		false
+	);
+
+	GetWorldTimerManager().SetTimer(
 		DodgeCooldownTimerHandle,
 		this,
 		&AAshenPlayerCharacter::ResetDodgeCooldown,
 		DodgeCooldown,
 		false
+	);
+}
+
+void AAshenPlayerCharacter::EndMistStep()
+{
+	if (!HasAuthority() ||
+		!bIsMistStepping)
+	{
+		return;
+	}
+
+	bIsMistStepping = false;
+
+	ApplyMistStepState();
+	ForceNetUpdate();
+}
+
+void AAshenPlayerCharacter::ApplyMistStepState()
+{
+	if (USkeletalMeshComponent* PlayerMesh =
+		GetMesh())
+	{
+		PlayerMesh->SetHiddenInGame(
+			bIsMistStepping,
+			true
+		);
+	}
+
+	if (UCapsuleComponent* Capsule =
+		GetCapsuleComponent())
+	{
+		Capsule->SetCollisionResponseToChannel(
+			ECC_Pawn,
+			bIsMistStepping
+			? ECR_Ignore
+			: OriginalPawnCollisionResponse
+		);
+	}
+}
+
+void AAshenPlayerCharacter::OnRep_IsMistStepping()
+{
+	ApplyMistStepState();
+}
+
+void AAshenPlayerCharacter::
+MulticastPlayMistStepCue_Implementation(
+	FVector_NetQuantize StartLocation,
+	FVector_NetQuantizeNormal Direction
+)
+{
+	BP_OnMistStep(
+		StartLocation,
+		Direction
 	);
 }
 
@@ -650,6 +827,7 @@ void AAshenPlayerCharacter::Attack(
 )
 {
 	if (bIsDead ||
+		bIsMistStepping ||
 		!AttributeComponent ||
 		!AttributeComponent->IsAlive() ||
 		!AttributeComponent->HasEnoughStamina(
@@ -678,6 +856,7 @@ void AAshenPlayerCharacter::PerformAttack()
 {
 	if (!HasAuthority() ||
 		bIsDead ||
+		bIsMistStepping ||
 		!bCanAttack ||
 		!AttributeComponent ||
 		!AttributeComponent->IsAlive() ||
@@ -717,6 +896,8 @@ void AAshenPlayerCharacter::PerformAttack()
 		AttackCooldown,
 		false
 	);
+
+	MulticastPlayAttackAnimationCue();
 
 	UWorld* World = GetWorld();
 
@@ -845,6 +1026,10 @@ void AAshenPlayerCharacter::PerformAttack()
 
 		DamagedActors.Add(ActorKey);
 
+		MulticastPlayAttackHitSound(
+			HitActor->GetActorLocation()
+		);
+
 		const bool bKilledHunter =
 			bTargetWasAlive &&
 			!TargetAttributeComponent->IsAlive() &&
@@ -854,23 +1039,229 @@ void AAshenPlayerCharacter::PerformAttack()
 		{
 			ApplyVampiricKillReward();
 		}
-
-		UE_LOG(
-			LogTemp,
-			Log,
-			TEXT(
-				"%s attacked %s for %.1f damage."
-			),
-			*GetName(),
-			*HitActor->GetName(),
-			AppliedDamage
-		);
 	}
 }
 
 void AAshenPlayerCharacter::ResetAttackCooldown()
 {
 	bCanAttack = true;
+}
+
+void AAshenPlayerCharacter::
+MulticastPlayAttackAnimationCue_Implementation()
+{
+	PlayAttackAnimationLocally();
+
+	if (AttackSwingSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(
+			this,
+			AttackSwingSound,
+			GetActorLocation(),
+			AttackSwingVolume
+		);
+	}
+}
+
+void AAshenPlayerCharacter::
+MulticastPlayAttackHitSound_Implementation(
+	FVector_NetQuantize HitLocation
+)
+{
+	if (!AttackHitSound)
+	{
+		return;
+	}
+
+	UGameplayStatics::PlaySoundAtLocation(
+		this,
+		AttackHitSound,
+		HitLocation,
+		AttackHitVolume
+	);
+}
+
+void AAshenPlayerCharacter::UpdateSimpleAnimation(
+	float DeltaSeconds
+)
+{
+	if (!bUseSimpleAnimationSystem ||
+		bIsDead ||
+		bAttackAnimationPlaying ||
+		!IsValid(WalkAnimation))
+	{
+		return;
+	}
+
+	/*
+	 * Never switch from walk to a separate idle asset. The same compatible
+	 * locomotion sequence stays active at all times, and its play rate eases
+	 * between movement speed and a very slow idle sway.
+	 */
+	if (CurrentSimpleAnimation != WalkAnimation ||
+		!bCurrentAnimationLooping)
+	{
+		PlaySimpleAnimation(
+			WalkAnimation,
+			true
+		);
+	}
+
+	USkeletalMeshComponent* PlayerMesh =
+		GetMesh();
+
+	if (!PlayerMesh)
+	{
+		return;
+	}
+
+	UAnimSingleNodeInstance* SingleNodeInstance =
+		PlayerMesh->GetSingleNodeInstance();
+
+	if (!SingleNodeInstance)
+	{
+		return;
+	}
+
+	const bool bMoving =
+		GetVelocity().Size2D() >
+		MoveAnimationSpeedThreshold;
+
+	const float TargetPlayRate =
+		bMoving
+		? MovingLocomotionPlayRate
+		: IdleLocomotionPlayRate;
+
+	if (DeltaSeconds <= 0.0f)
+	{
+		CurrentLocomotionPlayRate =
+			TargetPlayRate;
+	}
+	else
+	{
+		CurrentLocomotionPlayRate =
+			FMath::FInterpTo(
+				CurrentLocomotionPlayRate,
+				TargetPlayRate,
+				DeltaSeconds,
+				LocomotionPlayRateInterpSpeed
+			);
+	}
+
+	SingleNodeInstance->SetPlayRate(
+		CurrentLocomotionPlayRate
+	);
+
+	if (!SingleNodeInstance->IsPlaying())
+	{
+		SingleNodeInstance->SetPlaying(true);
+	}
+}
+
+void AAshenPlayerCharacter::PlaySimpleAnimation(
+	UAnimationAsset* Animation,
+	bool bLooping
+)
+{
+	if (!bUseSimpleAnimationSystem ||
+		!IsValid(Animation))
+	{
+		return;
+	}
+
+	USkeletalMeshComponent* PlayerMesh =
+		GetMesh();
+
+	if (!PlayerMesh)
+	{
+		return;
+	}
+
+	if (CurrentSimpleAnimation == Animation &&
+		bCurrentAnimationLooping == bLooping &&
+		PlayerMesh->IsPlaying())
+	{
+		return;
+	}
+
+	PlayerMesh->SetAnimationMode(
+		EAnimationMode::AnimationSingleNode,
+		true
+	);
+
+	PlayerMesh->PlayAnimation(
+		Animation,
+		bLooping
+	);
+
+	CurrentSimpleAnimation = Animation;
+	bCurrentAnimationLooping = bLooping;
+
+	if (Animation == WalkAnimation)
+	{
+		if (UAnimSingleNodeInstance* SingleNodeInstance =
+			PlayerMesh->GetSingleNodeInstance())
+		{
+			SingleNodeInstance->SetPlayRate(
+				CurrentLocomotionPlayRate
+			);
+		}
+	}
+}
+
+void AAshenPlayerCharacter::
+PlayAttackAnimationLocally()
+{
+	if (!bUseSimpleAnimationSystem ||
+		!IsValid(AttackAnimation) ||
+		bIsDead)
+	{
+		return;
+	}
+
+	GetWorldTimerManager().ClearTimer(
+		SimpleAttackAnimationTimerHandle
+	);
+
+	bAttackAnimationPlaying = true;
+
+	/*
+	 * Force the same attack sequence to restart when the player
+	 * attacks again before the previous animation has fully ended.
+	 */
+	CurrentSimpleAnimation = nullptr;
+
+	PlaySimpleAnimation(
+		AttackAnimation,
+		false
+	);
+
+	const float AnimationDuration =
+		FMath::Max(
+			AttackAnimation->GetPlayLength(),
+			0.1f
+		);
+
+	GetWorldTimerManager().SetTimer(
+		SimpleAttackAnimationTimerHandle,
+		this,
+		&AAshenPlayerCharacter::
+			FinishAttackAnimationLocally,
+		AnimationDuration,
+		false
+	);
+}
+
+void AAshenPlayerCharacter::
+FinishAttackAnimationLocally()
+{
+	bAttackAnimationPlaying = false;
+	CurrentSimpleAnimation = nullptr;
+	UpdateSimpleAnimation(
+		GetWorld()
+		? GetWorld()->GetDeltaSeconds()
+		: 0.05f
+	);
 }
 
 void AAshenPlayerCharacter::ApplyVampiricKillReward()
@@ -918,16 +1309,6 @@ void AAshenPlayerCharacter::ApplyVampiricKillReward()
 			BloodRestored
 		);
 	}
-
-	UE_LOG(
-		LogTemp,
-		Log,
-		TEXT(
-			"Vampiric Recovery: +%.1f Health, +%.1f Blood Essence."
-		),
-		HealthRestored,
-		BloodRestored
-	);
 }
 
 void AAshenPlayerCharacter::
@@ -951,6 +1332,21 @@ void AAshenPlayerCharacter::HandleDeath()
 
 	bIsDead = true;
 
+	if (LockOnTargetingComponent)
+	{
+		LockOnTargetingComponent->ClearLockOn();
+	}
+
+	GetWorldTimerManager().ClearTimer(
+		MistStepTimerHandle
+	);
+
+	if (bIsMistStepping)
+	{
+		bIsMistStepping = false;
+		ApplyMistStepState();
+	}
+
 	if (bIsSprinting)
 	{
 		SetSprinting(false);
@@ -966,6 +1362,12 @@ void AAshenPlayerCharacter::HandleDeath()
 		AttackCooldownTimerHandle
 	);
 
+	GetWorldTimerManager().ClearTimer(
+		SimpleAttackAnimationTimerHandle
+	);
+
+	bAttackAnimationPlaying = false;
+
 	ApplyDeathState();
 	ForceNetUpdate();
 }
@@ -974,12 +1376,26 @@ void AAshenPlayerCharacter::OnRep_IsDead()
 {
 	if (bIsDead)
 	{
+		if (LockOnTargetingComponent)
+		{
+			LockOnTargetingComponent->ClearLockOn();
+		}
+
+		bIsMistStepping = false;
+		ApplyMistStepState();
 		ApplyDeathState();
 	}
 }
 
 void AAshenPlayerCharacter::ApplyDeathState()
 {
+	GetWorldTimerManager().ClearTimer(
+		SimpleAttackAnimationTimerHandle
+	);
+
+	bAttackAnimationPlaying = false;
+	CurrentSimpleAnimation = nullptr;
+
 	CachedMovementInput =
 		FVector2D::ZeroVector;
 
@@ -1009,6 +1425,25 @@ void AAshenPlayerCharacter::ApplyDeathState()
 
 	if (!PlayerMesh)
 	{
+		return;
+	}
+
+	PlayerMesh->SetHiddenInGame(false, true);
+
+	if (bUseSimpleAnimationSystem &&
+		IsValid(DeathAnimation))
+	{
+		PlayerMesh->SetSimulatePhysics(false);
+
+		PlayerMesh->SetCollisionEnabled(
+			ECollisionEnabled::NoCollision
+		);
+
+		PlaySimpleAnimation(
+			DeathAnimation,
+			false
+		);
+
 		return;
 	}
 
