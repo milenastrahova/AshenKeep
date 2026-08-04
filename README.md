@@ -170,6 +170,25 @@ This repository is intended for source-code and architecture review.
 
 The complete editor project also uses third-party visual assets that are intentionally not redistributed through this public repository.
 
+<!-- PERFORMANCE_PROFILING_START -->
+## Measured Performance
+
+Standalone profiling of the heaviest captured environment and Hunter Captain combat encounter remained near 9.2 ms frame time, or approximately 108 FPS on the test machine.
+
+| Metric | Heavy Scene | Boss Combat |
+|---|---:|---:|
+| Frame time | 9.27 ms | 9.22 ms |
+| Game Thread | 8.15 ms | 8.60 ms |
+| Draw Thread | 9.32 ms | 9.17 ms |
+| GPU time | 6.61 ms | 6.74 ms |
+| Draw calls | 1,952 | 2,145 |
+| Primitives | 963.0K | 1,098.5K |
+
+The measured bottleneck was primarily the Draw Thread rather than GPU execution. Texture memory was approximately 895.88 MB inside a 1000 MB pool.
+
+See [docs/PERFORMANCE_PROFILING.md](docs/PERFORMANCE_PROFILING.md) for profiling screenshots, GPU passes, memory measurements, bottleneck analysis and the optimization plan.
+<!-- PERFORMANCE_PROFILING_END -->
+
 ## Repository Structure
 
 ```text
