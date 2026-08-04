@@ -131,17 +131,15 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Controls
 
-| Input | Action |
-|---|---|
-| WASD | Move |
-| Mouse | Look |
-| Shift | Sprint |
-| Ctrl | Mist Step |
-| Left Mouse Button | Melee attack |
-| Q | Blood Burst |
-| Tab | Toggle lock-on |
-| Esc | Pause |
-
+- `WASD` - Move
+- Mouse - Look
+- `Shift` - Sprint
+- `Ctrl` - Mist Step
+- `Space` - Jump
+- Left Mouse Button - Attack
+- `Q` - Blood Burst
+- `Tab` - Lock on
+- `Esc` - Pause
 ## Performance-Oriented Decisions
 
 - Core gameplay avoids unnecessary global searches after initialization.
