@@ -8,7 +8,21 @@ void UAshenEnemyHealthWidget::SetObservedEnemy(
 	AAshenTrainingEnemy* NewEnemy
 )
 {
+	if (ObservedEnemy.Get() == NewEnemy)
+	{
+		RefreshHealthBar();
+		return;
+	}
+
+	UnbindFromAttributes();
+
 	ObservedEnemy = NewEnemy;
+
+	BindToAttributes(
+		IsValid(NewEnemy)
+			? NewEnemy->GetAttributeComponent()
+			: nullptr
+	);
 
 	RefreshHealthBar();
 }
@@ -17,20 +31,94 @@ void UAshenEnemyHealthWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
 
+	if (AAshenTrainingEnemy* Enemy =
+		ObservedEnemy.Get())
+	{
+		BindToAttributes(
+			Enemy->GetAttributeComponent()
+		);
+	}
+
 	RefreshHealthBar();
 }
 
-void UAshenEnemyHealthWidget::NativeTick(
-	const FGeometry& MyGeometry,
-	float InDeltaTime
+void UAshenEnemyHealthWidget::NativeDestruct()
+{
+	UnbindFromAttributes();
+
+	Super::NativeDestruct();
+}
+
+void UAshenEnemyHealthWidget::BindToAttributes(
+	UAshenAttributeComponent* NewAttributes
 )
 {
-	Super::NativeTick(
-		MyGeometry,
-		InDeltaTime
+	if (ObservedAttributes == NewAttributes)
+	{
+		return;
+	}
+
+	UnbindFromAttributes();
+
+	ObservedAttributes = NewAttributes;
+
+	if (!ObservedAttributes)
+	{
+		return;
+	}
+
+	ObservedAttributes->OnHealthChanged.AddUniqueDynamic(
+		this,
+		&UAshenEnemyHealthWidget::
+		HandleHealthChanged
 	);
 
+	ObservedAttributes->OnDeath.AddUniqueDynamic(
+		this,
+		&UAshenEnemyHealthWidget::
+		HandleObservedEnemyDeath
+	);
+}
+
+void UAshenEnemyHealthWidget::
+	UnbindFromAttributes()
+{
+	if (!ObservedAttributes)
+	{
+		return;
+	}
+
+	ObservedAttributes->OnHealthChanged.RemoveDynamic(
+		this,
+		&UAshenEnemyHealthWidget::
+		HandleHealthChanged
+	);
+
+	ObservedAttributes->OnDeath.RemoveDynamic(
+		this,
+		&UAshenEnemyHealthWidget::
+		HandleObservedEnemyDeath
+	);
+
+	ObservedAttributes = nullptr;
+}
+
+void UAshenEnemyHealthWidget::
+	HandleHealthChanged(
+		float NewValue,
+		float MaxValue,
+		float Delta
+	)
+{
 	RefreshHealthBar();
+}
+
+void UAshenEnemyHealthWidget::
+	HandleObservedEnemyDeath()
+{
+	SetVisibility(
+		ESlateVisibility::Collapsed
+	);
 }
 
 void UAshenEnemyHealthWidget::RefreshHealthBar()
@@ -38,19 +126,10 @@ void UAshenEnemyHealthWidget::RefreshHealthBar()
 	AAshenTrainingEnemy* Enemy =
 		ObservedEnemy.Get();
 
-	if (!IsValid(Enemy) || !HealthBar)
-	{
-		SetVisibility(
-			ESlateVisibility::Collapsed
-		);
-
-		return;
-	}
-
-	UAshenAttributeComponent* Attributes =
-		Enemy->GetAttributeComponent();
-
-	if (!Attributes || Enemy->IsDead())
+	if (!IsValid(Enemy) ||
+		!ObservedAttributes ||
+		!HealthBar ||
+		Enemy->IsDead())
 	{
 		SetVisibility(
 			ESlateVisibility::Collapsed
@@ -61,14 +140,14 @@ void UAshenEnemyHealthWidget::RefreshHealthBar()
 
 	const float MaximumHealth =
 		FMath::Max(
-			Attributes->GetMaxHealth(),
+			ObservedAttributes->GetMaxHealth(),
 			KINDA_SMALL_NUMBER
 		);
 
 	const float HealthPercent =
 		FMath::Clamp(
-			Attributes->GetHealth() /
-			MaximumHealth,
+			ObservedAttributes->GetHealth() /
+				MaximumHealth,
 			0.0f,
 			1.0f
 		);

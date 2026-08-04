@@ -3,11 +3,13 @@
 #include "AshenAttributeComponent.h"
 #include "AshenPlayerCharacter.h"
 #include "AshenTrainingEnemy.h"
+#include "AshenTargetingMathLibrary.h"
 
 #include "DrawDebugHelpers.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/Pawn.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "TimerManager.h"
 
 AAshenEnemyAIController::
@@ -69,6 +71,10 @@ void AAshenEnemyAIController::StartThinkLoop()
 
 void AAshenEnemyAIController::UpdateAI()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(
+		AshenKeep_AI_Update
+	);
+
 	if (!HasAuthority())
 	{
 		return;
@@ -347,34 +353,20 @@ bool AAshenEnemyAIController::CanAcquirePlayer(
 		return true;
 	}
 
-	FVector DirectionToPlayer =
+	const FVector DirectionToPlayer =
 		PlayerLocation -
 		EnemyLocation;
 
-	DirectionToPlayer.Z = 0.0f;
-	DirectionToPlayer.Normalize();
-
-	FVector EnemyForward =
+	const FVector EnemyForward =
 		Enemy->GetActorForwardVector();
 
-	EnemyForward.Z = 0.0f;
-	EnemyForward.Normalize();
-
-	const float MinimumViewDot =
-		FMath::Cos(
-			FMath::DegreesToRadians(
-				PeripheralVisionHalfAngleDegrees
-			)
-		);
-
-	const float ViewDot =
-		FVector::DotProduct(
-			EnemyForward,
-			DirectionToPlayer
-		);
-
 	const bool bInsideVisionCone =
-		ViewDot >= MinimumViewDot;
+		UAshenTargetingMathLibrary::
+		IsInsideVisionCone2D(
+			EnemyForward,
+			DirectionToPlayer,
+			PeripheralVisionHalfAngleDegrees
+		);
 
 	if (bDrawVisionDebug && GetWorld())
 	{

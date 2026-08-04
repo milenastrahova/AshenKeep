@@ -9,6 +9,7 @@
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 #include "Kismet/GameplayStatics.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "Sound/SoundBase.h"
 #include "TimerManager.h"
 #include "UObject/ConstructorHelpers.h"
@@ -89,6 +90,10 @@ CanActivateBloodBurst() const
 
 void UAshenBloodBurstComponent::PerformBloodBurst()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(
+		AshenKeep_BloodBurst_Perform
+	);
+
 	AActor* OwnerActor = GetOwner();
 	UWorld* World = GetWorld();
 

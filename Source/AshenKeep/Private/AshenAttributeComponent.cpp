@@ -10,6 +10,71 @@ UAshenAttributeComponent::UAshenAttributeComponent()
 	SetIsReplicatedByDefault(true);
 }
 
+float UAshenAttributeComponent::CalculateValueAfterDamage(
+	float CurrentValue,
+	float MaximumValue,
+	float DamageAmount
+)
+{
+	const float SafeMaximum =
+		FMath::Max(0.0f, MaximumValue);
+
+	const float SafeCurrent =
+		FMath::Clamp(
+			CurrentValue,
+			0.0f,
+			SafeMaximum
+		);
+
+	if (DamageAmount <= 0.0f)
+	{
+		return SafeCurrent;
+	}
+
+	return FMath::Clamp(
+		SafeCurrent - DamageAmount,
+		0.0f,
+		SafeMaximum
+	);
+}
+
+float UAshenAttributeComponent::CalculateValueAfterRestore(
+	float CurrentValue,
+	float MaximumValue,
+	float RestoreAmount
+)
+{
+	const float SafeMaximum =
+		FMath::Max(0.0f, MaximumValue);
+
+	const float SafeCurrent =
+		FMath::Clamp(
+			CurrentValue,
+			0.0f,
+			SafeMaximum
+		);
+
+	if (RestoreAmount <= 0.0f)
+	{
+		return SafeCurrent;
+	}
+
+	return FMath::Clamp(
+		SafeCurrent + RestoreAmount,
+		0.0f,
+		SafeMaximum
+	);
+}
+
+bool UAshenAttributeComponent::CanConsumeResource(
+	float CurrentValue,
+	float Amount
+)
+{
+	return Amount >= 0.0f &&
+		CurrentValue >= Amount;
+}
+
 void UAshenAttributeComponent::BeginPlay()
 {
 	Super::BeginPlay();
@@ -54,10 +119,10 @@ float UAshenAttributeComponent::ApplyDamage(float DamageAmount)
 
 	const float OldHealth = Health;
 
-	Health = FMath::Clamp(
-		Health - DamageAmount,
-		0.0f,
-		MaxHealth
+	Health = CalculateValueAfterDamage(
+		Health,
+		MaxHealth,
+		DamageAmount
 	);
 
 	BroadcastHealthChanged(OldHealth);
@@ -86,10 +151,10 @@ float UAshenAttributeComponent::RestoreHealth(float Amount)
 
 	const float OldHealth = Health;
 
-	Health = FMath::Clamp(
-		Health + Amount,
-		0.0f,
-		MaxHealth
+	Health = CalculateValueAfterRestore(
+		Health,
+		MaxHealth,
+		Amount
 	);
 
 	BroadcastHealthChanged(OldHealth);
@@ -111,10 +176,10 @@ bool UAshenAttributeComponent::ConsumeStamina(float Amount)
 
 	const float OldStamina = Stamina;
 
-	Stamina = FMath::Clamp(
-		Stamina - Amount,
-		0.0f,
-		MaxStamina
+	Stamina = CalculateValueAfterDamage(
+		Stamina,
+		MaxStamina,
+		Amount
 	);
 
 	BroadcastStaminaChanged(OldStamina);
@@ -135,10 +200,10 @@ float UAshenAttributeComponent::RestoreStamina(float Amount)
 
 	const float OldStamina = Stamina;
 
-	Stamina = FMath::Clamp(
-		Stamina + Amount,
-		0.0f,
-		MaxStamina
+	Stamina = CalculateValueAfterRestore(
+		Stamina,
+		MaxStamina,
+		Amount
 	);
 
 	BroadcastStaminaChanged(OldStamina);
@@ -160,10 +225,10 @@ bool UAshenAttributeComponent::ConsumeMana(float Amount)
 
 	const float OldMana = Mana;
 
-	Mana = FMath::Clamp(
-		Mana - Amount,
-		0.0f,
-		MaxMana
+	Mana = CalculateValueAfterDamage(
+		Mana,
+		MaxMana,
+		Amount
 	);
 
 	BroadcastManaChanged(OldMana);
@@ -184,10 +249,10 @@ float UAshenAttributeComponent::RestoreMana(float Amount)
 
 	const float OldMana = Mana;
 
-	Mana = FMath::Clamp(
-		Mana + Amount,
-		0.0f,
-		MaxMana
+	Mana = CalculateValueAfterRestore(
+		Mana,
+		MaxMana,
+		Amount
 	);
 
 	BroadcastManaChanged(OldMana);
@@ -202,12 +267,18 @@ bool UAshenAttributeComponent::IsAlive() const
 
 bool UAshenAttributeComponent::HasEnoughStamina(float Amount) const
 {
-	return Amount >= 0.0f && Stamina >= Amount;
+	return CanConsumeResource(
+		Stamina,
+		Amount
+	);
 }
 
 bool UAshenAttributeComponent::HasEnoughMana(float Amount) const
 {
-	return Amount >= 0.0f && Mana >= Amount;
+	return CanConsumeResource(
+		Mana,
+		Amount
+	);
 }
 
 void UAshenAttributeComponent::OnRep_Health(float OldHealth)

@@ -213,3 +213,15 @@ This project demonstrates gameplay-focused Unreal Engine engineering:
 
 - GitHub: https://github.com/milenastrahova
 - ArtStation: https://www.artstation.com/milenastrahova
+
+## Automated Verification
+
+Ashen Keep includes seven Unreal Automation Framework tests covering deterministic attribute rules, targeting math, replication setup, RPC flags and performance-oriented Tick configuration.
+
+Run them with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Tools\Run_AshenKeep_AutomationTests.ps1"
+```
+
+Named Unreal Insights CPU scopes are documented in [docs/PERFORMANCE.md](docs/PERFORMANCE.md).

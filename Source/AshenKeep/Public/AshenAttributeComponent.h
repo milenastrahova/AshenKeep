@@ -26,6 +26,27 @@ class ASHENKEEP_API UAshenAttributeComponent : public UActorComponent
 public:
 	UAshenAttributeComponent();
 
+	/**
+	 * Pure deterministic helpers used by runtime code and automation tests.
+	 * They do not require a World or Actor authority.
+	 */
+	static float CalculateValueAfterDamage(
+		float CurrentValue,
+		float MaximumValue,
+		float DamageAmount
+	);
+
+	static float CalculateValueAfterRestore(
+		float CurrentValue,
+		float MaximumValue,
+		float RestoreAmount
+	);
+
+	static bool CanConsumeResource(
+		float CurrentValue,
+		float Amount
+	);
+
 	virtual void GetLifetimeReplicatedProps(
 		TArray<FLifetimeProperty>& OutLifetimeProps
 	) const override;

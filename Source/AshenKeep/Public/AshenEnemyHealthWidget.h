@@ -4,6 +4,7 @@
 #include "Blueprint/UserWidget.h"
 #include "AshenEnemyHealthWidget.generated.h"
 
+class UAshenAttributeComponent;
 class UProgressBar;
 class AAshenTrainingEnemy;
 
@@ -24,11 +25,7 @@ public:
 
 protected:
 	virtual void NativeConstruct() override;
-
-	virtual void NativeTick(
-		const FGeometry& MyGeometry,
-		float InDeltaTime
-	) override;
+	virtual void NativeDestruct() override;
 
 	UPROPERTY(
 		meta = (BindWidgetOptional),
@@ -38,8 +35,27 @@ protected:
 	TObjectPtr<UProgressBar> HealthBar;
 
 private:
+	void BindToAttributes(
+		UAshenAttributeComponent* NewAttributes
+	);
+
+	void UnbindFromAttributes();
 	void RefreshHealthBar();
+
+	UFUNCTION()
+	void HandleHealthChanged(
+		float NewValue,
+		float MaxValue,
+		float Delta
+	);
+
+	UFUNCTION()
+	void HandleObservedEnemyDeath();
 
 	TWeakObjectPtr<AAshenTrainingEnemy>
 		ObservedEnemy;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UAshenAttributeComponent>
+		ObservedAttributes;
 };

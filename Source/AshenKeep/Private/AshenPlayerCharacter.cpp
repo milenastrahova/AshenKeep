@@ -24,6 +24,7 @@
 #include "InputMappingContext.h"
 #include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "Sound/SoundBase.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -854,6 +855,10 @@ void AAshenPlayerCharacter::ServerAttack_Implementation()
 
 void AAshenPlayerCharacter::PerformAttack()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(
+		AshenKeep_Player_PerformAttack
+	);
+
 	if (!HasAuthority() ||
 		bIsDead ||
 		bIsMistStepping ||
@@ -1561,6 +1566,11 @@ void AAshenPlayerCharacter::CreatePlayerHUD()
 
 	if (HUDWidgetInstance)
 	{
+		HUDWidgetInstance->
+		InitializeWithAttributes(
+			AttributeComponent
+		);
+
 		HUDWidgetInstance->AddToPlayerScreen();
 	}
 }

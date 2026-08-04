@@ -2,12 +2,14 @@
 
 #include "AshenAttributeComponent.h"
 #include "AshenTrainingEnemy.h"
+#include "AshenTargetingMathLibrary.h"
 
 #include "DrawDebugHelpers.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 
 UAshenLockOnComponent::UAshenLockOnComponent()
 {
@@ -122,6 +124,10 @@ void UAshenLockOnComponent::SetLockOnTarget(
 AAshenTrainingEnemy*
 UAshenLockOnComponent::FindBestTarget() const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(
+		AshenKeep_LockOn_FindBestTarget
+	);
+
 	const ACharacter* OwnerCharacter =
 		GetOwnerCharacter();
 
@@ -189,12 +195,18 @@ UAshenLockOnComponent::FindBestTarget() const
 				).GetSafeNormal();
 
 		const float DirectionDot =
-			FVector::DotProduct(
+			UAshenTargetingMathLibrary::
+			CalculateDirectionDot2D(
 				ViewForward,
 				DirectionToTarget
 			);
 
-		if (DirectionDot < MinimumDot)
+		if (!UAshenTargetingMathLibrary::
+			IsInsideVisionCone2D(
+				ViewForward,
+				DirectionToTarget,
+				MaxLockAngleDegrees
+			))
 		{
 			continue;
 		}
@@ -214,15 +226,14 @@ UAshenLockOnComponent::FindBestTarget() const
 				Candidate->GetActorLocation()
 			);
 
-		const float DistanceScore =
-			Distance / MaxLockDistance;
-
-		const float AngleScore =
-			1.0f - DirectionDot;
-
 		const float TotalScore =
-			AngleScore * 2.0f +
-			DistanceScore;
+			UAshenTargetingMathLibrary::
+			CalculateTargetScore(
+				DirectionDot,
+				Distance,
+				MaxLockDistance,
+				2.0f
+			);
 
 		if (TotalScore < BestScore)
 		{

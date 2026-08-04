@@ -1,61 +1,59 @@
-# Performance Considerations
+# Performance and Profiling
 
-## Current Engineering Decisions
+## Implemented Optimizations
 
-### CPU
+### Event-Driven UI
 
-- Resource updates and cooldowns use timers.
-- The purge objective uses a configurable timer rather than per-frame Tick.
-- Actor Components isolate systems and reduce repeated logic.
-- Gameplay queries use bounded ranges and configurable radii.
-- Debug drawing is controlled through editor-exposed flags.
+Player and enemy health widgets subscribe to attribute delegates. They update when health, stamina or Blood Essence changes instead of recalculating bars every frame.
 
-### GPU / Visuals
+### Timer-Driven Systems
 
-The vertical slice is intended for a controlled showcase map. Visual validation should cover:
+- Enemy AI uses a configurable think timer.
+- The ritual objective uses a completion-check timer.
+- Sprint drain and regeneration use timers.
+- Damage volumes use periodic timers.
+- Cooldowns use timer handles.
 
-- material complexity;
-- movable light count;
-- shadow cost;
-- skeletal mesh cost;
-- transparency/particle overdraw;
-- post-processing cost;
-- draw calls.
+### Conditional Tick
 
-### Network
+- Lock-on Tick starts disabled and is enabled only while a target is locked.
+- Attribute components do not Tick.
+- Damage volumes, AI controllers and ritual objectives do not Tick.
+- Character/enemy animation updates use a reduced tick interval.
 
-- Server-authoritative actions prevent divergent client state.
-- Unreliable multicast is used for non-critical cosmetic cues.
-- Replicated booleans represent compact gameplay state.
-- Reliable communication is reserved for state-changing actions and victory.
+### Network Cost
 
-### Memory
+- Server authority owns damage, rewards and objective completion.
+- Short-lived cosmetic cues use unreliable multicast.
+- Reliable RPC/multicast is reserved for gameplay requests and match-critical results.
+- Replicated booleans keep state payloads compact.
 
-- Unreal object references use reflected object pointers.
-- Reusable systems are components instead of duplicated actor logic.
-- Assets should be validated through Size Map and Reference Viewer before release.
+## Unreal Insights Trace Scopes
 
-## Profiling Procedure
+The following named CPU scopes are implemented:
 
-The next measured pass should record:
+```text
+AshenKeep_AI_Update
+AshenKeep_LockOn_FindBestTarget
+AshenKeep_Player_PerformAttack
+AshenKeep_Enemy_TryAttack
+AshenKeep_BloodBurst_Perform
+AshenKeep_Objective_Evaluate
+AshenKeep_HUD_BuildInterface
+```
 
-1. stat unit
-2. stat game
-3. stat gpu
-4. stat memory
-5. stat net
-6. Unreal Insights CPU trace
-7. RenderDoc or GPU Visualizer capture
-8. packaged Shipping build frame-time sample
+They can be searched directly in Unreal Insights.
 
-Results should be recorded as:
+## Measurement Plan
 
-| Metric | Before | After | Test Scene |
-|---|---:|---:|---|
-| Game thread | TBD | TBD | Main fortress combat |
-| GPU frame | TBD | TBD | Main fortress combat |
-| Draw calls | TBD | TBD | Main fortress combat |
-| Memory | TBD | TBD | Packaged build |
-| Network traffic | TBD | TBD | 2-player PIE |
+Use one repeatable fortress-combat scene and record:
 
-No performance number should be published until it has been measured in a repeatable test.
+| Metric | Tool | Result |
+|---|---|---|
+| Game thread | Unreal Insights / `stat unit` | Pending capture |
+| GPU frame | GPU Visualizer / `stat gpu` | Pending capture |
+| Draw calls | `stat scenerendering` | Pending capture |
+| Memory | `stat memory` | Pending capture |
+| Network traffic | `stat net` in 2-player PIE | Pending capture |
+
+Performance values must be measured before publishing; no invented numbers are used.

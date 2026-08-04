@@ -14,6 +14,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "Sound/SoundBase.h"
 #include "UObject/ConstructorHelpers.h"
 #include "TimerManager.h"
@@ -169,6 +170,10 @@ void AAshenTrainingEnemy::TryAttack(
 	AAshenPlayerCharacter* Target
 )
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(
+		AshenKeep_Enemy_TryAttack
+	);
+
 	if (!HasAuthority() ||
 		bIsDead ||
 		!bCanAttack ||

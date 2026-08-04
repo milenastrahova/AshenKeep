@@ -37,11 +37,7 @@ public:
 
 protected:
 	virtual void NativeConstruct() override;
-
-	virtual void NativeTick(
-		const FGeometry& MyGeometry,
-		float InDeltaTime
-	) override;
+	virtual void NativeDestruct() override;
 
 	virtual FReply NativeOnPreviewMouseButtonDown(
 		const FGeometry& InGeometry,
@@ -69,7 +65,35 @@ private:
 	) const;
 
 	void ResolveAttributeComponent();
+	void BindToAttributes(
+		UAshenAttributeComponent* NewAttributes
+	);
+	void UnbindFromAttributes();
 	void RefreshBars();
+
+	UFUNCTION()
+	void HandleHealthChanged(
+		float NewValue,
+		float MaxValue,
+		float Delta
+	);
+
+	UFUNCTION()
+	void HandleStaminaChanged(
+		float NewValue,
+		float MaxValue,
+		float Delta
+	);
+
+	UFUNCTION()
+	void HandleBloodChanged(
+		float NewValue,
+		float MaxValue,
+		float Delta
+	);
+
+	UFUNCTION()
+	void HandlePlayerDeath();
 
 	UTextBlock* CreateText(
 		FName WidgetName,

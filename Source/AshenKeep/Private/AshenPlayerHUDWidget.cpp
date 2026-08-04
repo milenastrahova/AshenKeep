@@ -19,6 +19,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "InputCoreTypes.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 
 namespace AshenHUD
 {
@@ -129,7 +130,7 @@ void UAshenPlayerHUDWidget::
 		UAshenAttributeComponent* InAttributes
 	)
 {
-	ObservedAttributes = InAttributes;
+	BindToAttributes(InAttributes);
 	RefreshBars();
 }
 
@@ -155,28 +156,11 @@ void UAshenPlayerHUDWidget::NativeConstruct()
 	ShowStartupMenu();
 }
 
-void UAshenPlayerHUDWidget::NativeTick(
-	const FGeometry& MyGeometry,
-	const float InDeltaTime
-)
+void UAshenPlayerHUDWidget::NativeDestruct()
 {
-	Super::NativeTick(
-		MyGeometry,
-		InDeltaTime
-	);
+	UnbindFromAttributes();
 
-	if (!ObservedAttributes)
-	{
-		ResolveAttributeComponent();
-	}
-
-	if (bStartupMenuOpen &&
-		!bMenuInputApplied)
-	{
-		ApplyStartupMenuInput();
-	}
-
-	RefreshBars();
+	Super::NativeDestruct();
 }
 
 FReply UAshenPlayerHUDWidget::
@@ -313,12 +297,118 @@ void UAshenPlayerHUDWidget::
 		return;
 	}
 
-	ObservedAttributes =
-		Player->GetAttributeComponent();
+	BindToAttributes(
+		Player->GetAttributeComponent()
+	);
+}
+
+void UAshenPlayerHUDWidget::BindToAttributes(
+	UAshenAttributeComponent* NewAttributes
+)
+{
+	if (ObservedAttributes == NewAttributes)
+	{
+		return;
+	}
+
+	UnbindFromAttributes();
+
+	ObservedAttributes = NewAttributes;
+
+	if (!ObservedAttributes)
+	{
+		return;
+	}
+
+	ObservedAttributes->OnHealthChanged.AddUniqueDynamic(
+		this,
+		&UAshenPlayerHUDWidget::HandleHealthChanged
+	);
+
+	ObservedAttributes->OnStaminaChanged.AddUniqueDynamic(
+		this,
+		&UAshenPlayerHUDWidget::HandleStaminaChanged
+	);
+
+	ObservedAttributes->OnManaChanged.AddUniqueDynamic(
+		this,
+		&UAshenPlayerHUDWidget::HandleBloodChanged
+	);
+
+	ObservedAttributes->OnDeath.AddUniqueDynamic(
+		this,
+		&UAshenPlayerHUDWidget::HandlePlayerDeath
+	);
+}
+
+void UAshenPlayerHUDWidget::UnbindFromAttributes()
+{
+	if (!ObservedAttributes)
+	{
+		return;
+	}
+
+	ObservedAttributes->OnHealthChanged.RemoveDynamic(
+		this,
+		&UAshenPlayerHUDWidget::HandleHealthChanged
+	);
+
+	ObservedAttributes->OnStaminaChanged.RemoveDynamic(
+		this,
+		&UAshenPlayerHUDWidget::HandleStaminaChanged
+	);
+
+	ObservedAttributes->OnManaChanged.RemoveDynamic(
+		this,
+		&UAshenPlayerHUDWidget::HandleBloodChanged
+	);
+
+	ObservedAttributes->OnDeath.RemoveDynamic(
+		this,
+		&UAshenPlayerHUDWidget::HandlePlayerDeath
+	);
+
+	ObservedAttributes = nullptr;
+}
+
+void UAshenPlayerHUDWidget::HandleHealthChanged(
+	float NewValue,
+	float MaxValue,
+	float Delta
+)
+{
+	RefreshBars();
+}
+
+void UAshenPlayerHUDWidget::HandleStaminaChanged(
+	float NewValue,
+	float MaxValue,
+	float Delta
+)
+{
+	RefreshBars();
+}
+
+void UAshenPlayerHUDWidget::HandleBloodChanged(
+	float NewValue,
+	float MaxValue,
+	float Delta
+)
+{
+	RefreshBars();
+}
+
+void UAshenPlayerHUDWidget::HandlePlayerDeath()
+{
+	RefreshBars();
 }
 
 void UAshenPlayerHUDWidget::BuildInterface()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(
+		AshenKeep_HUD_BuildInterface
+	);
+
 	if (bInterfaceBuilt || !WidgetTree)
 	{
 		return;

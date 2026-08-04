@@ -9,6 +9,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "Sound/SoundBase.h"
 #include "TimerManager.h"
 #include "UObject/ConstructorHelpers.h"
@@ -123,6 +124,10 @@ GetLifetimeReplicatedProps(
 void AAshenPurgeRitualObjective::
 EvaluateCompletion()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(
+		AshenKeep_Objective_Evaluate
+	);
+
 	if (!HasAuthority() ||
 		bRitualCompleted)
 	{

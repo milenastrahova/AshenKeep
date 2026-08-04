@@ -1,62 +1,50 @@
-# Testing Strategy
+# Automated Testing
 
-## Current Manual Test Matrix
+Ashen Keep includes Unreal Automation Framework tests under:
 
-### Player
+```text
+Source/AshenKeep/Private/Tests/AshenCoreAutomationTests.cpp
+```
 
-- movement and camera input;
-- sprint start/stop;
-- stamina depletion and regeneration;
-- Mist Step cooldown and stamina cost;
-- melee attack cooldown;
-- lock-on acquisition and release;
-- death state;
-- HUD updates.
+## Test Groups
 
-### Combat
+### Attributes
 
-- player damage against hunters;
-- hunter damage against player;
-- Blood Burst resource validation;
-- Blood Burst multi-target damage;
-- kill rewards;
-- enemy death and ragdoll;
-- captain defeat.
+- `AshenKeep.Attributes.DefaultValues`
+- `AshenKeep.Attributes.DeterministicMath`
 
-### Objective
+These tests validate default resource configuration, replication settings, damage clamping, restoration clamping and resource-consumption rules.
 
-- ritual remains incomplete while captain is alive;
-- ritual completes after captain death;
-- victory UI appears once;
-- dedicated server does not create UI.
+### Targeting Math
 
-### Multiplayer
+- `AshenKeep.Math.Targeting.VisionCone`
+- `AshenKeep.Math.Targeting.Score`
 
-- server-authoritative sprint;
-- replicated Mist Step;
-- replicated death;
-- Blood Burst damage created only once;
-- cosmetic cues visible on clients;
-- ritual completion visible on all players.
+These tests validate the reusable 2D dot-product vision-cone logic and the lock-on scoring function used by both player targeting and enemy AI.
 
-## Planned Unreal Automation Tests
+### Networking
 
-The next code pass will add tests for:
+- `AshenKeep.Network.ReplicationConfiguration`
+- `AshenKeep.Network.RPCFunctionFlags`
 
-- attribute clamping;
-- resource spending;
-- cooldown state transitions;
-- Blood Burst activation validation;
-- captain/objective completion;
-- replication-oriented state changes where testable without a full network session.
+These tests verify replicated actors/components and inspect Unreal reflection flags for Server RPC, reliable multicast and unreliable multicast configuration.
 
-## Test Naming
+### Performance Configuration
 
-`	ext
-AshenKeep.Attributes.*
-AshenKeep.Abilities.*
-AshenKeep.Objective.*
-AshenKeep.Networking.*
-`
+- `AshenKeep.Performance.TickConfiguration`
 
-The goal is to keep deterministic gameplay logic testable independently from visual assets.
+This test verifies that timer-driven actors do not use Tick and that lock-on starts with component Tick disabled.
+
+## Running Tests
+
+From the repository root:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\Tools\Run_AshenKeep_AutomationTests.ps1"
+```
+
+The runner launches `UnrealEditor-Cmd` with `NullRHI`, executes every `AshenKeep.*` test and saves a complete log on the desktop.
+
+## Design Principle
+
+Deterministic calculations are extracted into pure reusable functions. This allows gameplay math to be tested without loading a map or depending on visual assets.
