@@ -174,20 +174,19 @@ The complete editor project also uses third-party visual assets that are intenti
 
 ## Repository Structure
 
-`	ext
+```text
 AshenKeep/
-Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ Config/
-Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ Content/
-Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ Source/
-Ã¢â€â€š   Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ AshenKeep/
-Ã¢â€â€š       Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ Private/
-Ã¢â€â€š       Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ Public/
-Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ docs/
-Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ media/
-Ã¢â€Å“Ã¢â€â‚¬Ã¢â€â‚¬ AshenKeep.uproject
-Ã¢â€â€Ã¢â€â‚¬Ã¢â€â‚¬ README.md
-`
-
+|-- Config/
+|-- Source/
+|   `-- AshenKeep/
+|       |-- Private/
+|       |   `-- Tests/
+|       `-- Public/
+|-- docs/
+|-- media/
+|-- AshenKeep.uproject
+`-- README.md
+```
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md)
