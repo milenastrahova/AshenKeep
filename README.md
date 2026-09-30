@@ -4,6 +4,21 @@
 
 The player controls an ancient vampire who awakens during an invasion of the fortress. Monster hunters are performing a cleansing ritual before dawn; the objective is to fight through the keep, defeat the Hunter Captain and stop the purge.
 
+## Quick Review
+
+**Role:** Solo game designer / developer  
+**Engine:** Unreal Engine 5.8  
+**Primary focus:** Gameplay loop, enemy encounters, player abilities, boss encounter, objectives, UI feedback, playtesting  
+**Playable state:** Packaged vertical slice  
+**Best recruiter entry point:** [Game Design Case Study](docs/GAME_DESIGN_CASE_STUDY.md)
+
+### Portfolio navigation
+
+- **Ashen Keep** — complete gameplay vertical slice
+- [Blood Cathedral](https://github.com/milenastrahova/BloodCathedral) — stealth/action design prototype
+- [CyberCorp HQ](https://github.com/milenastrahova/CyberCorp-HQ-Technical-Art) — interaction, objective flow and technical art
+- [ArtStation](https://www.artstation.com/milenastrahova) — visual portfolio
+
 
 ## Game Design Case Study
 
