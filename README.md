@@ -5,6 +5,10 @@
 The player controls an ancient vampire who awakens during an invasion of the fortress. Monster hunters are performing a cleansing ritual before dawn; the objective is to fight through the keep, defeat the Hunter Captain and stop the purge.
 
 
+## Game Design Case Study
+
+For a recruiter-friendly breakdown of the player loop, encounter design, playtesting and iteration process, see [Game Design Case Study](docs/GAME_DESIGN_CASE_STUDY.md).
+
 ## Gameplay Showcase
 
 [Watch the gameplay showcase](media/ashen-keep-gameplay.mp4)
