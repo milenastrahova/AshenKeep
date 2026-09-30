@@ -1,5 +1,7 @@
 # Ashen Keep: Blood Hunt
 
+**[Portfolio Overview](PORTFOLIO.md) • [Game Design Case Study](docs/GAME_DESIGN_CASE_STUDY.md) • [ArtStation](https://www.artstation.com/milenastrahova)**
+
 **Ashen Keep: Blood Hunt** is a dark-fantasy action game prototype built in **Unreal Engine 5.8**, focused on gameplay design, enemy encounters, player abilities, boss progression, objectives, UI feedback and iterative playtesting.
 
 The player controls an ancient vampire who awakens during an invasion of the fortress. Monster hunters are performing a cleansing ritual before dawn; the objective is to fight through the keep, defeat the Hunter Captain and stop the purge.
