@@ -1,6 +1,6 @@
 # Ashen Keep: Blood Hunt
 
-**Ashen Keep: Blood Hunt** is a networked dark-fantasy gameplay vertical slice built in **Unreal Engine 5.8** with a C++-first architecture.
+**Ashen Keep: Blood Hunt** is a dark-fantasy action game prototype built in **Unreal Engine 5.8**, focused on gameplay design, enemy encounters, player abilities, boss progression, objectives, UI feedback and iterative playtesting.
 
 The player controls an ancient vampire who awakens during an invasion of the fortress. Monster hunters are performing a cleansing ritual before dawn; the objective is to fight through the keep, defeat the Hunter Captain and stop the purge.
 
@@ -23,15 +23,22 @@ Included here:
 
 The playable Windows Shipping build is distributed separately through **GitHub Releases**.
 
-## Technical Focus
+## Game Design Focus
+- Clear player loop: explore → detect threat → position/evade → engage → survive → advance → defeat the captain
+- Player mobility built around sprint and Mist Step for spacing and defensive decision-making
+- Enemy perception, pursuit and attack behaviour used to create readable encounter pressure
+- Health, damage and death states that make positioning meaningful
+- A distinct Hunter Captain encounter as the final difficulty spike
+- Objectives, pause flow and win/lose states that turn the prototype into a complete playable experience
+- Iterative playtesting and balancing of AI, navigation, encounter difficulty and player feedback
+
+## Technical Foundation
 - Server-authoritative networked gameplay
 - Unreal Engine C++ gameplay architecture
 - Replicated player, enemy and objective state
 - Reusable Actor Components
 - C++/Blueprint separation
 - Runtime UMG dashboard constructed in C++
-- Enemy AI, combat and boss encounter
-- Resource-driven vampire abilities
 - Packaged standalone Windows build
 
 ## Gameplay Systems
@@ -214,15 +221,15 @@ AshenKeep/
 
 ## Portfolio Relevance
 
-This project demonstrates gameplay-focused Unreal Engine engineering:
+This project demonstrates my **game design process as well as implementation ability**:
 
-- C++ and Blueprint integration;
-- multiplayer authority and replication;
-- reusable gameplay components;
-- AI and combat systems;
-- runtime UI;
-- materials, animation, lighting and level presentation;
-- packaged vertical-slice delivery.
+- defining a clear gameplay loop and player objective;
+- designing movement, combat and encounter rules;
+- tuning enemy behaviour and boss difficulty through playtesting;
+- debugging navigation and encounter-flow problems;
+- using UI, animation and audio to improve player feedback;
+- carrying a prototype through to a complete packaged vertical slice;
+- supporting the design with C++ and Blueprint implementation.
 
 ## Author
 
